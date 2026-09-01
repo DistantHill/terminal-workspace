@@ -11,6 +11,8 @@ if ($PSVersionTable.PSEdition -ne "Core" -or $PSVersionTable.PSVersion.Major -lt
 
 $installRoot = Join-Path $env:LOCALAPPDATA "WTwork"
 $binDirectory = Join-Path $installRoot "bin"
+$workspaceDirectory = Join-Path $installRoot "workspaces"
+$sourceWorkspaceDirectory = Join-Path $PSScriptRoot "workspaces"
 $launcherPath = Join-Path $binDirectory "WTwork.cmd"
 $entryScript = Join-Path $installRoot "TerminalWorkspace.ps1"
 $runtimeFiles = @(
@@ -46,6 +48,7 @@ $plan = [ordered]@{
     binDirectory = $binDirectory
     launcher = $launcherPath
     entryScript = $entryScript
+    workspaceDirectory = $workspaceDirectory
     runtimeFiles = $runtimeFiles
     pathChangeRequired = -not $pathRegistered
 }
@@ -57,11 +60,21 @@ if ($DryRun) {
 
 New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $binDirectory -Force | Out-Null
+New-Item -ItemType Directory -Path $workspaceDirectory -Force | Out-Null
 
 foreach ($fileName in $runtimeFiles) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $fileName) -Destination (Join-Path $installRoot $fileName) -Force
 }
 Set-Content -LiteralPath $launcherPath -Value $launcher -Encoding ascii
+
+if (Test-Path -LiteralPath $sourceWorkspaceDirectory -PathType Container) {
+    foreach ($workspaceFile in (Get-ChildItem -LiteralPath $sourceWorkspaceDirectory -Filter "*.json" -File)) {
+        $targetWorkspacePath = Join-Path $workspaceDirectory $workspaceFile.Name
+        if (-not (Test-Path -LiteralPath $targetWorkspacePath)) {
+            Copy-Item -LiteralPath $workspaceFile.FullName -Destination $targetWorkspacePath
+        }
+    }
+}
 
 if (-not $pathRegistered) {
     $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) {

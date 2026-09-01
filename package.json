@@ -1,0 +1,46 @@
+{
+  "name": "wtwork",
+  "version": "0.1.0",
+  "description": "Save and restore Windows Terminal and tmux workspaces with exact Codex CLI sessions.",
+  "bin": {
+    "WTwork": "bin/wtwork.js"
+  },
+  "files": [
+    "bin/wtwork.js",
+    "TerminalWorkspace.ps1",
+    "Save-TerminalWorkspace.ps1",
+    "Open-TerminalWorkspace.ps1",
+    "Get-WslTerminalSessions.py",
+    "Get-WslTerminalSessions.sh",
+    "Restore-TmuxTab.py",
+    "workspace.example.json",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "pwsh -NoLogo -NoProfile -File ./Test-TerminalWorkspace.ps1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DistanceHill/SaveTerminalWorkSpace.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DistanceHill/SaveTerminalWorkSpace/issues"
+  },
+  "homepage": "https://github.com/DistanceHill/SaveTerminalWorkSpace#readme",
+  "keywords": [
+    "windows-terminal",
+    "tmux",
+    "wsl",
+    "codex",
+    "workspace"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "win32"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

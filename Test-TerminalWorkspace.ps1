@@ -6,16 +6,44 @@ $shellConfig = Join-Path $PSScriptRoot "tests\shell-workspace.json"
 $legacyTmuxConfig = Join-Path $PSScriptRoot "tests\tmux-workspace.json"
 $map1Config = Join-Path $PSScriptRoot "workspaces\地图1.json"
 $installer = Join-Path $PSScriptRoot "Install-WTwork.ps1"
+$bootstrap = Join-Path $PSScriptRoot "install.ps1"
+$packageConfig = Join-Path $PSScriptRoot "package.json"
 
 $installPlan = & $installer -DryRun | ConvertFrom-Json
 if (
     $installPlan.command -ne "WTwork" -or
     -not $installPlan.launcher.EndsWith("WTwork\bin\WTwork.cmd") -or
     -not $installPlan.entryScript.EndsWith("WTwork\TerminalWorkspace.ps1") -or
+    -not $installPlan.workspaceDirectory.EndsWith("WTwork\workspaces") -or
     $installPlan.runtimeFiles -notcontains "TerminalWorkspace.ps1" -or
     $installPlan.runtimeFiles -notcontains "Restore-TmuxTab.py"
 ) {
     throw "WTwork installation plan is invalid."
+}
+
+$bootstrapPlan = & $bootstrap -DryRun | ConvertFrom-Json
+if (
+    $bootstrapPlan.archiveUrl -ne "https://github.com/DistanceHill/SaveTerminalWorkSpace/releases/latest/download/WTwork.zip" -or
+    $bootstrapPlan.checksumUrl -ne "https://github.com/DistanceHill/SaveTerminalWorkSpace/releases/latest/download/WTwork.zip.sha256" -or
+    $bootstrapPlan.command -ne "WTwork"
+) {
+    throw "WTwork remote bootstrap plan is invalid."
+}
+
+$package = Get-Content -LiteralPath $packageConfig -Raw | ConvertFrom-Json
+if (
+    $package.name -ne "wtwork" -or
+    $package.version -ne "0.1.0" -or
+    $package.bin.WTwork -ne "bin/wtwork.js" -or
+    $package.files -notcontains "TerminalWorkspace.ps1"
+) {
+    throw "WTwork npm package metadata is invalid."
+}
+
+$terminalWorkspaceSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot "TerminalWorkspace.ps1") -Raw
+$saveWorkspaceSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot "Save-TerminalWorkspace.ps1") -Raw
+if ($terminalWorkspaceSource -notmatch 'WTWORK_DATA_HOME' -or $saveWorkspaceSource -notmatch 'WTWORK_DATA_HOME') {
+    throw "Workspace data must resolve outside the installed package directory."
 }
 
 $codexPlan = & $launcher -Config $codexConfig -DryRun | ConvertFrom-Json

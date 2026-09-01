@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Build release assets
+        shell: pwsh
+        run: |
+          $package = Get-Content -LiteralPath package.json -Raw | ConvertFrom-Json
+          if ($env:GITHUB_REF_NAME -ne "v$($package.version)") {
+            throw "Tag $env:GITHUB_REF_NAME does not match package version $($package.version)."
+          }
+
+          $runtimeFiles = @(
+            "Install-WTwork.ps1",
+            "TerminalWorkspace.ps1",
+            "Save-TerminalWorkspace.ps1",
+            "Open-TerminalWorkspace.ps1",
+            "Get-WslTerminalSessions.py",
+            "Get-WslTerminalSessions.sh",
+            "Restore-TmuxTab.py",
+            "workspace.example.json",
+            "README.md"
+          )
+          New-Item -ItemType Directory -Path dist/package -Force | Out-Null
+          foreach ($file in $runtimeFiles) {
+            Copy-Item -LiteralPath $file -Destination dist/package/$file
+          }
+          Compress-Archive -Path dist/package/* -DestinationPath dist/WTwork.zip
+          $hash = (Get-FileHash -LiteralPath dist/WTwork.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  WTwork.zip" | Set-Content -LiteralPath dist/WTwork.zip.sha256 -NoNewline
+
+          npm pack --pack-destination dist
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+          $packageArchives = @(Get-ChildItem -LiteralPath dist -Filter "*.tgz" -File)
+          if ($packageArchives.Count -ne 1) {
+            throw "npm pack must produce exactly one package archive."
+          }
+          Move-Item -LiteralPath $packageArchives[0].FullName -Destination dist/wtwork.tgz
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            dist/WTwork.zip `
+            dist/WTwork.zip.sha256 `
+            dist/wtwork.tgz `
+            --verify-tag `
+            --title "WTwork $env:GITHUB_REF_NAME" `
+            --generate-notes

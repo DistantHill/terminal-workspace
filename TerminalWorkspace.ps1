@@ -10,7 +10,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$workspacesDirectory = Join-Path $PSScriptRoot "workspaces"
+$dataRoot = if ($env:WTWORK_DATA_HOME) {
+    [IO.Path]::GetFullPath($env:WTWORK_DATA_HOME)
+} elseif ($env:LOCALAPPDATA) {
+    Join-Path $env:LOCALAPPDATA "WTwork"
+} else {
+    throw "LOCALAPPDATA is required unless WTWORK_DATA_HOME is set."
+}
+$workspacesDirectory = Join-Path $dataRoot "workspaces"
 
 if ($Name -eq "--tmux") {
     $Name = $null

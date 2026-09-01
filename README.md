@@ -4,13 +4,38 @@
 
 ## 安装
 
+### GitHub Release + curl（推荐）
+
+在 PowerShell 7 中下载并执行 bootstrap：
+
+```powershell
+curl.exe -fsSLo "$env:TEMP\install-wtwork.ps1" `
+  https://raw.githubusercontent.com/DistanceHill/SaveTerminalWorkSpace/main/install.ps1
+
+pwsh -NoProfile -ExecutionPolicy Bypass -File "$env:TEMP\install-wtwork.ps1"
+```
+
+bootstrap 会从最新 GitHub Release 下载 `WTwork.zip` 和 `WTwork.zip.sha256`，通过 SHA256 校验后安装。
+
+### 从 GitHub Release 使用 npm 安装
+
+已经安装 Node/npm 的 Windows 用户也可以直接安装 Release 中的 npm 包：
+
+```powershell
+npm install -g https://github.com/DistanceHill/SaveTerminalWorkSpace/releases/latest/download/wtwork.tgz
+```
+
+npm 会根据 `package.json.bin` 创建 `WTwork` 命令；Node shim 会把参数原样转发给 PowerShell 7。
+
+### 从源码安装
+
 在 PowerShell 7 中运行：
 
 ```powershell
 pwsh -ExecutionPolicy Bypass -File .\Install-WTwork.ps1
 ```
 
-安装脚本会把运行文件复制到 `%LOCALAPPDATA%\WTwork`，创建 `WTwork.cmd`，并把 `%LOCALAPPDATA%\WTwork\bin` 注册到当前用户 PATH。现有的 `%LOCALAPPDATA%\WTwork\workspaces` 不会在升级安装时被删除或覆盖。
+安装脚本会把运行文件复制到 `%LOCALAPPDATA%\WTwork`，创建 `WTwork.cmd`，并把 `%LOCALAPPDATA%\WTwork\bin` 注册到当前用户 PATH。workspace 数据统一保存在 `%LOCALAPPDATA%\WTwork\workspaces`；从旧源码目录安装时会迁移尚未存在的 workspace，升级安装不会删除或覆盖已有数据。
 
 重新打开终端后，可以在任意目录运行：
 

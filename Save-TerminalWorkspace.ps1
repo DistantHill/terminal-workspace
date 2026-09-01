@@ -11,6 +11,14 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$dataRoot = if ($env:WTWORK_DATA_HOME) {
+    [IO.Path]::GetFullPath($env:WTWORK_DATA_HOME)
+} elseif ($env:LOCALAPPDATA) {
+    Join-Path $env:LOCALAPPDATA "WTwork"
+} else {
+    throw "LOCALAPPDATA is required unless WTWORK_DATA_HOME is set."
+}
+$workspacesDirectory = Join-Path $dataRoot "workspaces"
 
 if (
     [string]::IsNullOrWhiteSpace($Name) -or
@@ -71,7 +79,7 @@ function Get-SourceProject {
     if ([string]::IsNullOrWhiteSpace($WorkspaceName) -or $TabId -notmatch '^\d+$') {
         return $null
     }
-    $sourcePath = Join-Path (Join-Path $PSScriptRoot "workspaces") "$WorkspaceName.json"
+    $sourcePath = Join-Path $workspacesDirectory "$WorkspaceName.json"
     if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
         return $null
     }
@@ -331,7 +339,6 @@ if ($DryRun) {
     exit 0
 }
 
-$workspacesDirectory = Join-Path $PSScriptRoot "workspaces"
 New-Item -ItemType Directory -Path $workspacesDirectory -Force | Out-Null
 $workspacePath = Join-Path $workspacesDirectory "$Name.json"
 if ((Test-Path -LiteralPath $workspacePath) -and -not $Force) {
