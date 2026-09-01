@@ -5,6 +5,18 @@ $codexConfig = Join-Path $PSScriptRoot "workspace.example.json"
 $shellConfig = Join-Path $PSScriptRoot "tests\shell-workspace.json"
 $legacyTmuxConfig = Join-Path $PSScriptRoot "tests\tmux-workspace.json"
 $map1Config = Join-Path $PSScriptRoot "workspaces\地图1.json"
+$installer = Join-Path $PSScriptRoot "Install-WTwork.ps1"
+
+$installPlan = & $installer -DryRun | ConvertFrom-Json
+if (
+    $installPlan.command -ne "WTwork" -or
+    -not $installPlan.launcher.EndsWith("WTwork\bin\WTwork.cmd") -or
+    -not $installPlan.entryScript.EndsWith("WTwork\TerminalWorkspace.ps1") -or
+    $installPlan.runtimeFiles -notcontains "TerminalWorkspace.ps1" -or
+    $installPlan.runtimeFiles -notcontains "Restore-TmuxTab.py"
+) {
+    throw "WTwork installation plan is invalid."
+}
 
 $codexPlan = & $launcher -Config $codexConfig -DryRun | ConvertFrom-Json
 $codexCommands = @($codexPlan.arguments | Where-Object { $_ -like "exec codex resume *" })

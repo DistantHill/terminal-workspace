@@ -2,6 +2,31 @@
 
 把 Ubuntu shell/Codex 会话保存成命名 workspace。同一份 workspace 布局可以由 Windows Terminal 原生 Pane 或 tmux 渲染。
 
+## 安装
+
+在 PowerShell 7 中运行：
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File .\Install-WTwork.ps1
+```
+
+安装脚本会把运行文件复制到 `%LOCALAPPDATA%\WTwork`，创建 `WTwork.cmd`，并把 `%LOCALAPPDATA%\WTwork\bin` 注册到当前用户 PATH。现有的 `%LOCALAPPDATA%\WTwork\workspaces` 不会在升级安装时被删除或覆盖。
+
+重新打开终端后，可以在任意目录运行：
+
+```powershell
+WTwork list
+WTwork save 地图1
+WTwork 地图1
+WTwork 地图1 --tmux
+```
+
+只检查安装计划、不修改文件或 PATH：
+
+```powershell
+.\Install-WTwork.ps1 -DryRun
+```
+
 ## 运行环境
 
 使用 PowerShell 7：
