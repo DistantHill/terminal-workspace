@@ -1,0 +1,13 @@
+{
+  "name": "测试工作区",
+  "distribution": "Ubuntu-22.04",
+  "profile": "Ubuntu-22.04",
+  "projects": [
+    {
+      "name": "home",
+      "directory": "/home/test-user",
+      "mode": "shell",
+      "sessionId": null
+    }
+  ]
+}

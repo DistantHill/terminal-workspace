@@ -1,0 +1,32 @@
+{
+  "name": "地图分屏",
+  "distribution": "Ubuntu-22.04",
+  "profile": "Ubuntu-22.04",
+  "projects": [
+    {
+      "name": "map-panes",
+      "directory": "/home/test-user/map",
+      "mode": "tmux",
+      "tmux": {
+        "layout": "2919,129x31,0,0{64x31,0,0,1,64x31,65,0,2}",
+        "activePane": 1,
+        "panes": [
+          {
+            "index": 0,
+            "directory": "/home/test-user/map",
+            "mode": "codex",
+            "sessionId": "11111111-1111-4111-8111-111111111111",
+            "sessionName": "地图数据清理"
+          },
+          {
+            "index": 1,
+            "directory": "/home/test-user/map",
+            "mode": "codex",
+            "sessionId": "22222222-2222-4222-8222-222222222222",
+            "sessionName": "地图渲染优化"
+          }
+        ]
+      }
+    }
+  ]
+}
