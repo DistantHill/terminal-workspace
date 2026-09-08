@@ -96,7 +96,7 @@ $scannerPath = Join-Path $PSScriptRoot "Get-WslTerminalSessions.sh"
 $previousConsoleOutputEncoding = [Console]::OutputEncoding
 try {
     [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
-    $scannerWslPath = (& wsl.exe -d $Distribution -- wslpath -a -u $scannerPath).Trim()
+    $scannerWslPath = (& wsl.exe -d $Distribution --exec wslpath -a -u $scannerPath).Trim()
     if ($LASTEXITCODE -ne 0) {
         throw "Could not translate the WSL session scanner path."
     }
