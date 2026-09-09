@@ -69,6 +69,8 @@ cd '<clone-path>\terminal-workspace'
 .\TerminalWorkspace.ps1 save 地图1
 ```
 
+默认保存同时列出原生 shell/Codex Tab 和 tmux windows；tmux 自动按 window 聚合全部 pane，保留布局及 Codex 会话，不重复列出其外层 shell。无需将 tmux Tab 切回前台。Codex 会话解析会在数据库句柄关闭后按会话锁定位数据目录，读取版本号最高的 state 数据库。
+
 列表中的已标记 Pane 会自动聚合成同一个 Tab。第一次登记手动创建的 Windows Terminal Pane 时，用 `+` 表示同一个 Tab、用逗号分隔不同 Tab：
 
 ```text
@@ -87,7 +89,7 @@ cd '<clone-path>\terminal-workspace'
 
 ## 显式选择 tmux
 
-保存当前 tmux session 的 windows：
+仅列出并保存 tmux windows（不包含原生 shell Tab）：
 
 ```powershell
 .\TerminalWorkspace.ps1 save 地图1 --tmux

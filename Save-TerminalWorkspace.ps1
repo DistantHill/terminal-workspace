@@ -135,10 +135,15 @@ if ($Tmux) {
     $candidateProcesses = @($processes | Where-Object TmuxPane)
     $sessionGroups = @($candidateProcesses | Group-Object { "$($_.TmuxSession)`0$($_.TmuxWindowId)" })
 } else {
-    $candidateProcesses = @($processes | Where-Object { -not $_.TmuxPane })
+    $tmuxTerminalSessions = @($processes | Where-Object { $_.TmuxPane -and $_.Session } | Select-Object -ExpandProperty Session -Unique)
+    $candidateProcesses = @($processes | Where-Object {
+        $_.TmuxPane -or $_.Session -notin $tmuxTerminalSessions
+    })
     $sessionGroups = @(
         $candidateProcesses | Group-Object {
-            if ($_.Workspace -and $_.TabId -match '^\d+$') {
+            if ($_.TmuxPane) {
+                "tmux`0$($_.Session)`0$($_.TmuxSession)`0$($_.TmuxWindowId)"
+            } elseif ($_.Workspace -and $_.TabId -match '^\d+$') {
                 "managed`0$($_.Workspace)`0$($_.TabId)"
             } else {
                 "native`0$($_.Session)"
@@ -150,7 +155,8 @@ if ($Tmux) {
 $sessions = @(
     foreach ($group in $sessionGroups) {
         $firstProcess = $group.Group[0]
-        if ($Tmux) {
+        $isTmux = [bool]$firstProcess.TmuxPane
+        if ($isTmux) {
             $paneGroups = @($group.Group | Group-Object TmuxPane | Sort-Object { [int]$_.Group[0].TmuxPaneIndex })
         } elseif ($firstProcess.Workspace -and $firstProcess.TabId -match '^\d+$') {
             $paneGroups = @($group.Group | Group-Object PaneIndex | Sort-Object { [int]$_.Name })
@@ -169,7 +175,7 @@ $sessions = @(
         }
 
         $sourceProject = Get-SourceProject -WorkspaceName $firstProcess.Workspace -TabId $firstProcess.TabId
-        $title = if ($Tmux) {
+        $title = if ($isTmux) {
             [string]$firstProcess.TmuxWindow
         } elseif ($sourceProject -and $sourceProject.name) {
             [string]$sourceProject.name
@@ -180,7 +186,7 @@ $sessions = @(
             $title = $Distribution
         }
 
-        $layout = if ($sourceProject -and $sourceProject.layout -and @($sourceProject.panes).Count -eq $panes.Count) {
+        $layout = if (-not $isTmux -and $sourceProject -and $sourceProject.layout -and @($sourceProject.panes).Count -eq $panes.Count) {
             $sourceProject.layout
         } else {
             New-SequentialLayout -PaneCount $panes.Count -ActivePane $activePane.Index -TmuxLayout ([string]$firstProcess.TmuxLayout)
@@ -190,7 +196,7 @@ $sessions = @(
             Index = 0
             Title = $title
             Directory = $panes[0].Directory
-            Mode = if ($Tmux) { "tmux" } elseif ($panes.Count -gt 1) { "native" } else { $panes[0].Mode }
+            Mode = if ($isTmux) { "tmux" } elseif ($panes.Count -gt 1) { "native" } else { $panes[0].Mode }
             Panes = $panes.Count
             SessionName = ($panes | Where-Object SessionName | ForEach-Object SessionName) -join " | "
             SessionId = if ($panes.Count -eq 1) { $panes[0].SessionId } else { "" }
@@ -247,7 +253,7 @@ if ($All) {
                     $chosen[0]
                     continue
                 }
-                if ($chosen | Where-Object { $_.Panes -ne 1 }) {
+                if ($chosen | Where-Object { $_.Panes -ne 1 -or $_.Mode -eq "tmux" }) {
                     throw "Only ungrouped single panes can be joined with '+'."
                 }
                 $joinedPanes = @(

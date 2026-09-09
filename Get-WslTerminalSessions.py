@@ -25,6 +25,7 @@ def resolve_codex_session(process_path, environment):
     session_name = environment.get("TERMINAL_CODEX_SESSION_NAME", "")
     lock_ids = []
     state_database = None
+    state_directory = None
 
     for descriptor in os.scandir(os.path.join(process_path, "fd")):
         try:
@@ -35,8 +36,18 @@ def resolve_codex_session(process_path, environment):
         lock_match = re.search(r"/thread-writer-locks/([^/]+)\.lock$", target)
         if lock_match:
             lock_ids.append(lock_match.group(1))
+            state_directory = os.path.dirname(os.path.dirname(target))
         elif re.search(r"/state_[0-9]+\.sqlite$", target):
             state_database = target
+
+    if lock_ids and not state_database:
+        databases = [
+            (int(match.group(1)), entry.path)
+            for entry in os.scandir(state_directory)
+            if (match := re.fullmatch(r"state_([0-9]+)\.sqlite", entry.name))
+        ]
+        if databases:
+            state_database = max(databases)[1]
 
     if not lock_ids or not state_database:
         return session_id, session_name

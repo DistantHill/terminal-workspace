@@ -1,5 +1,7 @@
 $ErrorActionPreference = "Stop"
 
+& (Join-Path $PSScriptRoot "tests/Test-SaveDetection.ps1")
+
 $launcher = Join-Path $PSScriptRoot "Open-TerminalWorkspace.ps1"
 $codexConfig = Join-Path $PSScriptRoot "workspace.example.json"
 $shellConfig = Join-Path $PSScriptRoot "tests\shell-workspace.json"
