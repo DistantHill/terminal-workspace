@@ -65,7 +65,7 @@ def resolve_codex_session(process_path, environment):
     connection = sqlite3.connect(f"file:{state_database}?mode=ro", uri=True)
     row = connection.execute(
         f"""
-        select id, coalesce(nullif(name, ''), nullif(title, ''), id)
+        select id, coalesce(nullif(name, ''), '')
         from threads
         where id in ({placeholders}) and source = 'cli'
         order by recency_at_ms desc, updated_at_ms desc

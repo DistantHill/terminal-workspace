@@ -28,6 +28,31 @@ function ConvertTo-WTworkDisplayLines {
     $lines.ToArray()
 }
 
+function Limit-WTworkDisplayText {
+    param([string]$Text, [int]$MaximumWidth)
+
+    $elements = [Collections.Generic.List[string]]::new()
+    $textWidth = 0
+    $enumerator = [Globalization.StringInfo]::GetTextElementEnumerator($Text)
+    while ($enumerator.MoveNext()) {
+        $element = $enumerator.GetTextElement()
+        $elements.Add($element)
+        $textWidth += if ($element -eq "`t") { 8 - ($textWidth % 8) } elseif ([int][char]$element[0] -le 0x7f) { 1 } else { 2 }
+    }
+    if ($textWidth -le $MaximumWidth) { return $Text }
+
+    $result = [Text.StringBuilder]::new()
+    $displayWidth = 0
+    foreach ($element in $elements) {
+        $elementWidth = if ($element -eq "`t") { 8 - ($displayWidth % 8) } elseif ([int][char]$element[0] -le 0x7f) { 1 } else { 2 }
+        if ($displayWidth + $elementWidth -gt $MaximumWidth - 3) { break }
+        [void]$result.Append($element)
+        $displayWidth += $elementWidth
+    }
+    [void]$result.Append('...')
+    $result.ToString()
+}
+
 function Format-WTworkColumn {
     param([string]$Text, [int]$Width)
 
@@ -108,8 +133,13 @@ function Select-WTworkItems {
                     $pointer = if ($index -eq $cursor) { '>' } else { ' ' }
                     $check = if ($selected[$index]) { '[x]' } else { '[ ]' }
                     $group = if ($groups[$index]) { " 组$($groups[$index])" } else { '' }
-                    foreach ($line in (ConvertTo-WTworkDisplayLines -Text "$pointer $check $($Items[$index].Label)$group" -MaximumWidth $maximumWidth -ContinuationPrefix '      ')) {
-                        $renderLines.Add($line)
+                    $itemText = "$pointer $check $($Items[$index].Label)$group"
+                    if ($Items[$index].SingleLine) {
+                        $renderLines.Add((Limit-WTworkDisplayText -Text $itemText -MaximumWidth $maximumWidth))
+                    } else {
+                        foreach ($line in (ConvertTo-WTworkDisplayLines -Text $itemText -MaximumWidth $maximumWidth -ContinuationPrefix '      ')) {
+                            $renderLines.Add($line)
+                        }
                     }
                     if ($expanded[$index]) {
                         foreach ($detail in @($Items[$index].Details)) {

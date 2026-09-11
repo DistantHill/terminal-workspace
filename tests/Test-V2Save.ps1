@@ -13,9 +13,9 @@ if (
     throw 'Fixed-width workspace columns must truncate or pad without shifting later columns.'
 }
 $longSessionName = '会话' * 100
-$wrappedSessionName = ConvertTo-WTworkDisplayLines -Text $longSessionName -MaximumWidth 40
-if ($wrappedSessionName.Count -lt 2 -or ($wrappedSessionName -join '') -ne $longSessionName) {
-    throw 'Interactive rows must wrap long session names without truncating them.'
+$limitedSessionName = Limit-WTworkDisplayText -Text $longSessionName -MaximumWidth 40
+if (-not $limitedSessionName.EndsWith('...') -or (ConvertTo-WTworkDisplayLines -Text $limitedSessionName -MaximumWidth 40).Count -ne 1) {
+    throw 'Interactive save rows must truncate long session names to one terminal line.'
 }
 $groupingItems = 1..4 | ForEach-Object { [pscustomobject]@{ Label = "Pane $_"; Groupable = $true } }
 $groupingKeys = @(
@@ -42,7 +42,7 @@ $global:v2SaveRows = @(
     "shell-tab`t/home/reed/workspace`t0`t`t`t`t`t`t`t`t`t`t`t`t`t`t"
     "native-a`t/native/a`t1`t`t`t`tthread-na`tNative A`t`t`t`t`t`t`t`t`t"
     "native-b`t/native/b`t0`t`t`t`t`t`t`t`t`t`t`t`t`t`t"
-    "tmux-tab`t/project/a`t1`t`t`t`tthread-a`tConversation A`tmy-tmux`t@0`t2`tconfig`tlayout-a`t%8`t1`t1"
+    "tmux-tab`t/project/a`t1`t`t`t`tthread-a`t$longSessionName`tmy-tmux`t@0`t2`tconfig`tlayout-a`t%8`t1`t1"
     "tmux-tab`t/project/b`t1`t`t`t`tthread-b`tConversation B`tmy-tmux`t@0`t2`tconfig`tlayout-a`t%10`t2`t0"
     "tmux-tab`t/project/c`t0`t`t`t`t`t`tmy-tmux`t@0`t2`tconfig`tlayout-a`t%9`t3`t0"
     "other-tab`t/project/z`t1`t`t`t`tthread-z`tConversation Z`talpha-tmux`t@1`t1`tconfig`tlayout-z`t%11`t1`t1"
@@ -76,6 +76,7 @@ if (
     $windows[2].panes.Count -ne 3 -or
     $windows[2].panes[0].session_type -ne 'codex' -or
     $windows[2].panes[0].sessionId -ne 'thread-a' -or
+    $windows[2].panes[0].sessionName -ne $longSessionName -or
     $windows[2].panes[2].session_type -ne 'shell' -or
     $windows[2].layout -ne 'layout-a'
 ) {

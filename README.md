@@ -85,7 +85,7 @@ WTwork save -n 地图项目
 
 所有多选菜单使用同一套 Codex CLI 风格按键：`↑/↓` 移动，`Space` 选择或取消，`Enter` 对全部已选项执行当前命令，`Esc` 取消。保存菜单默认全选，因此不改选择直接按 `Enter` 表示保存全部。
 
-保存列表按 `TmuxSession → WindowIndex → Title → Panes → SessionName` 排列；workspace name 和 `Title` 各占固定 16 格，`Panes` 占固定 8 格。超宽的固定列显示为 `...`，后续列不会被挤压；最后的 `SessionName` 不截断，会按终端宽度完整换行显示。
+保存列表按 `TmuxSession → WindowIndex → Title → Panes → SessionName` 排列；workspace name 和 `Title` 各占固定 16 格，`Panes` 占固定 8 格。超宽的固定列显示为 `...`，后续列不会被挤压；最后的 `SessionName` 超出当前终端宽度时显示为单行摘要并以 `...` 结尾，workspace JSON 仍保存完整名称。
 
 已标记 Pane 会自动聚合。第一次登记手动创建的 Pane 时，勾选要合并的单 Pane 后按 `G`，菜单会用“组1、组2……”标记；按 `U` 可解除已选 Pane 的分组。同组 Pane 保存为一个等分 Tab。恢复后的标记使后续保存无需再次分组。
 
@@ -95,7 +95,7 @@ WTwork save -n 地图项目
 WTwork save -tmux
 ```
 
-列表按 `TmuxSession` 聚类，并按真实 `WindowIndex` 展示。`SessionName` 始终是 Pane 中的 Codex 会话名；shell Pane 留空。同一 tmux window 可以同时保存 Codex 和 shell Pane。
+列表按 `TmuxSession` 聚类，并按真实 `WindowIndex` 展示。`SessionName` 只读取 Codex 数据库 `threads.name` 中的简短会话名；没有名称时留空，不使用可能包含完整首条消息的 `threads.title`。shell Pane 也留空。同一 tmux window 可以同时保存 Codex 和 shell Pane。
 
 保存菜单默认全选；直接按 `Enter` 时，每个 tmux session 自动保存为独立的同名 workspace。例如来源是 `HDOnlineMAP` 和 `Multimodal-GEO-roadnet`，就分别写入两个 JSON。自动派生的文件直接覆盖旧结果。JSON window 顺序遵循勾选顺序。
 

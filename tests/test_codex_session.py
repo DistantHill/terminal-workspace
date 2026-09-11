@@ -27,7 +27,7 @@ class CodexSessionTests(unittest.TestCase):
         )
         self.assertTrue(scanner.is_codex_process(['/usr/local/bin/codex', 'resume', 'thread-a']))
 
-    def test_restored_session_resolves_name_from_codex_home(self):
+    def test_restored_session_does_not_use_prompt_title_as_name(self):
         with tempfile.TemporaryDirectory() as directory:
             database = pathlib.Path(directory) / 'state_5.sqlite'
             connection = sqlite3.connect(database)
@@ -49,7 +49,7 @@ class CodexSessionTests(unittest.TestCase):
             with patch('os.scandir', side_effect=scandir):
                 self.assertEqual(
                     scanner.resolve_codex_session('/process', environment),
-                    ('thread-a', 'Conversation A'),
+                    ('thread-a', ''),
                 )
 
     def test_session_survives_closed_database_descriptor(self):

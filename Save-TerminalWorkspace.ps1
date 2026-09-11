@@ -264,7 +264,7 @@ if ($All) {
             } else {
                 "$(Format-WTworkColumn $session.Title 16)$(Format-WTworkColumn "$($session.Panes) panes" 8)$($session.SessionName)"
             }
-            [pscustomobject]@{ Label = $label; Groupable = -not $Tmux -and $session.Panes -eq 1 }
+            [pscustomobject]@{ Label = $label; Groupable = -not $Tmux -and $session.Panes -eq 1; SingleLine = $true }
         }
     )
     $selectionResult = Select-WTworkItems -Items $menuItems -Title "选择本次要保存的项目" -DefaultAll -AllowGrouping:(-not $Tmux) -KeyReader $SelectionKeyReader
