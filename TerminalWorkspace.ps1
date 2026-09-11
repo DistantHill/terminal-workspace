@@ -6,7 +6,8 @@ param(
     [string]$Name,
     [Parameter(Position = 2)]
     [string]$Option,
-    [switch]$Tmux
+    [switch]$Tmux,
+    [switch]$Force
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,7 +40,7 @@ switch ($ActionOrName) {
         if ([string]::IsNullOrWhiteSpace($Name)) {
             $Name = Read-Host "输入新 workspace 名称"
         }
-        & (Join-Path $PSScriptRoot "Save-TerminalWorkspace.ps1") -Name $Name -Tmux:$Tmux
+        & (Join-Path $PSScriptRoot "Save-TerminalWorkspace.ps1") -Name $Name -Tmux:$Tmux -Force:$Force
         exit $LASTEXITCODE
     }
     "list" {
