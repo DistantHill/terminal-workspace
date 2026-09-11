@@ -199,6 +199,7 @@ $sessions = @(
             Mode = if ($isTmux) { "tmux" } elseif ($panes.Count -gt 1) { "native" } else { $panes[0].Mode }
             Panes = $panes.Count
             SessionName = ($panes | Where-Object SessionName | ForEach-Object SessionName) -join " | "
+            TmuxSession = if ($isTmux) { [string]$firstProcess.TmuxSession } else { "" }
             SessionId = if ($panes.Count -eq 1) { $panes[0].SessionId } else { "" }
             ExistingWorkspace = [string]$firstProcess.Workspace
             PanesData = $panes
@@ -206,6 +207,8 @@ $sessions = @(
         }
     }
 )
+
+$sessions = @($sessions | Sort-Object TmuxSession)
 
 if ($sessions.Count -eq 0) {
     $kind = if ($Tmux) { "tmux windows" } else { "native Windows Terminal Ubuntu panes" }
@@ -225,7 +228,7 @@ foreach ($session in $sessions) {
     }
 }
 
-$sessions | Format-Table Index,Title,Mode,Panes,SessionName,SessionId,Directory,ExistingWorkspace -AutoSize
+$sessions | Format-Table Index,TmuxSession,Title,Mode,Panes,SessionName,SessionId,Directory,ExistingWorkspace -AutoSize
 
 if ($All) {
     $selectedSessions = $sessions
@@ -276,6 +279,7 @@ if ($All) {
                     Mode = "native"
                     Panes = $joinedPanes.Count
                     SessionName = ($joinedPanes | Where-Object SessionName | ForEach-Object SessionName) -join " | "
+                    TmuxSession = ""
                     SessionId = ""
                     ExistingWorkspace = ""
                     PanesData = $joinedPanes

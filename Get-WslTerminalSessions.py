@@ -40,7 +40,16 @@ def resolve_codex_session(process_path, environment):
         elif re.search(r"/state_[0-9]+\.sqlite$", target):
             state_database = target
 
-    if lock_ids and not state_database:
+    lookup_ids = lock_ids
+    if not lookup_ids and session_id:
+        lookup_ids = [session_id]
+        state_directory = (
+            environment["CODEX_HOME"]
+            if "CODEX_HOME" in environment
+            else os.path.join(environment["HOME"], ".codex")
+        )
+
+    if lookup_ids and not state_database:
         databases = [
             (int(match.group(1)), entry.path)
             for entry in os.scandir(state_directory)
@@ -49,10 +58,10 @@ def resolve_codex_session(process_path, environment):
         if databases:
             state_database = max(databases)[1]
 
-    if not lock_ids or not state_database:
+    if not lookup_ids or not state_database:
         return session_id, session_name
 
-    placeholders = ",".join("?" for _ in lock_ids)
+    placeholders = ",".join("?" for _ in lookup_ids)
     connection = sqlite3.connect(f"file:{state_database}?mode=ro", uri=True)
     row = connection.execute(
         f"""
@@ -62,7 +71,7 @@ def resolve_codex_session(process_path, environment):
         order by recency_at_ms desc, updated_at_ms desc
         limit 1
         """,
-        lock_ids,
+        lookup_ids,
     ).fetchone()
     connection.close()
 

@@ -69,7 +69,7 @@ cd '<clone-path>\terminal-workspace'
 .\TerminalWorkspace.ps1 save 地图1
 ```
 
-默认保存同时列出原生 shell/Codex Tab 和 tmux windows；tmux 自动按 window 聚合全部 pane，保留布局及 Codex 会话，不重复列出其外层 shell。无需将 tmux Tab 切回前台。Codex 会话解析会在数据库句柄关闭后按会话锁定位数据目录，读取版本号最高的 state 数据库。
+默认保存同时列出原生 shell/Codex Tab 和 tmux windows；tmux 自动按 window 聚合全部 pane，保留布局及 Codex 会话，不重复列出其外层 shell。无需将 tmux Tab 切回前台。Codex 会话解析优先按会话锁定位数据目录；恢复进程没有会话锁时，则使用保留的 Session ID 查询 `CODEX_HOME` 中版本号最高的 state 数据库。
 
 列表中的已标记 Pane 会自动聚合成同一个 Tab。第一次登记手动创建的 Windows Terminal Pane 时，用 `+` 表示同一个 Tab、用逗号分隔不同 Tab：
 
@@ -94,6 +94,8 @@ cd '<clone-path>\terminal-workspace'
 ```powershell
 .\TerminalWorkspace.ps1 save 地图1 --tmux
 ```
+
+选择列表按 `TmuxSession` 聚类，每个 tmux session 下分别显示其 windows。`TmuxSession` 列表示 window 所属的 tmux session，`SessionName` 列只显示 window 内的 Codex 会话名称。扫描器会枚举同一 tmux server/socket 上的全部 sessions，因此同名 window 可能真实存在于不同 sessions；可通过 `TmuxSession` 列区分其来源。
 
 使用 tmux 恢复同一份 workspace：
 

@@ -5,6 +5,8 @@ $global:saveDetectionRows = @(
     "tmux-tab`t/project/a`t1`t`t`t`tthread-a`tConversation A`tmy-tmux`t@0`tconfig`tlayout-a`t%8`t1`t1"
     "tmux-tab`t/project/b`t1`t`t`t`tthread-b`tConversation B`tmy-tmux`t@0`tconfig`tlayout-a`t%10`t2`t0"
     "tmux-tab`t/project/c`t0`t`t`t`t`t`tmy-tmux`t@0`tconfig`tlayout-a`t%9`t3`t0"
+    "other-tab`t/project/z`t1`t`t`t`tthread-z`tConversation Z`talpha-tmux`t@1`tconfig`tlayout-z`t%11`t1`t1"
+    "tmux-tab`t/project/d`t1`t`t`t`tthread-d`tConversation D`tmy-tmux`t@3`tsecond`tlayout-d`t%13`t1`t1"
 )
 function wsl.exe {
     $global:LASTEXITCODE = 0
@@ -21,9 +23,23 @@ foreach ($tmuxOnly in @($false, $true)) {
     if ($layout[0].panes[0].sessionId -ne 'thread-a' -or $layout[0].panes[1].sessionId -ne 'thread-b' -or $layout[0].layout.tmux -ne 'layout-a') {
         throw 'Lost Codex sessions or tmux layout.'
     }
-    $expectedCount = if ($tmuxOnly) { 1 } else { 2 }
+    $table = $output.Substring(0, $output.IndexOf('{'))
+    $expectedCount = if ($tmuxOnly) { 3 } else { 4 }
     if ($workspace.projects.Count -ne $expectedCount -or $output -notmatch 'tmux\s+3') {
         throw 'Incorrect mode or duplicate outer shell.'
+    }
+    if (
+        $table -notmatch 'TmuxSession\s+Title\s+Mode\s+Panes\s+SessionName' -or
+        $table -notmatch 'alpha-tmux\s+config\s+tmux\s+1\s+Conversation Z' -or
+        $table -notmatch 'my-tmux\s+config-2\s+tmux\s+3\s+Conversation A \| Conversation B'
+    ) {
+        throw 'Expected separate Codex SessionName and TmuxSession columns.'
+    }
+    if (
+        $table.IndexOf('alpha-tmux') -gt $table.IndexOf('my-tmux') -or
+        $table -notmatch 'my-tmux\s+second\s+tmux\s+1\s+Conversation D'
+    ) {
+        throw 'Expected distinct windows to be grouped by tmux session.'
     }
     if (-not $tmuxOnly -and @($workspace.projects | Where-Object directory -eq '/home/reed/workspace').Count -ne 1) {
         throw 'Lost the independent shell tab.'

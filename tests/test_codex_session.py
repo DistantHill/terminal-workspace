@@ -14,6 +14,31 @@ with patch('os.scandir', return_value=[]):
 
 
 class CodexSessionTests(unittest.TestCase):
+    def test_restored_session_resolves_name_from_codex_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = pathlib.Path(directory) / 'state_5.sqlite'
+            connection = sqlite3.connect(database)
+            connection.execute('create table threads (id, name, title, source, recency_at_ms, updated_at_ms)')
+            connection.execute("insert into threads values ('thread-a', '', 'Conversation A', 'cli', 1, 1)")
+            connection.commit()
+            connection.close()
+            real_scandir = scanner.os.scandir
+
+            def scandir(path):
+                if path == '/process/fd':
+                    return []
+                return real_scandir(path)
+
+            environment = {
+                'CODEX_HOME': directory,
+                'TERMINAL_CODEX_SESSION_ID': 'thread-a',
+            }
+            with patch('os.scandir', side_effect=scandir):
+                self.assertEqual(
+                    scanner.resolve_codex_session('/process', environment),
+                    ('thread-a', 'Conversation A'),
+                )
+
     def test_session_survives_closed_database_descriptor(self):
         with tempfile.TemporaryDirectory() as directory:
             database = pathlib.Path(directory) / 'state_5.sqlite'
