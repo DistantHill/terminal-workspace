@@ -83,13 +83,9 @@ WTwork save -n 地图项目
 
 不指定 `-n` 时保存为 `TempTab.json` 并自动覆盖。每个选中分组恢复为一个新 Tab，并保留 Pane 布局。指定 `-n` 时保存为对应名称；已有同名文件且没有 `-Force` 时才询问是否覆盖。
 
-已标记 Pane 会自动聚合。第一次登记手动创建的 Pane 时，用 `+` 表示同一个 Tab、用逗号分隔不同 Tab：
+所有多选菜单使用同一套 Codex CLI 风格按键：`↑/↓` 移动，`Space` 选择或取消，`Enter` 对全部已选项执行当前命令，`Esc` 取消。保存菜单默认全选，因此不改选择直接按 `Enter` 表示保存全部。
 
-```text
-2+3+4,5
-```
-
-`2+3+4` 保存为一个等宽三 Pane Tab，`5` 单独成为一个 Tab。恢复后的标记使后续保存无需再次输入 `+`。
+已标记 Pane 会自动聚合。第一次登记手动创建的 Pane 时，勾选要合并的单 Pane 后按 `G`，菜单会用“组1、组2……”标记；按 `U` 可解除已选 Pane 的分组。同组 Pane 保存为一个等分 Tab。恢复后的标记使后续保存无需再次分组。
 
 ### tmux sessions
 
@@ -99,7 +95,7 @@ WTwork save -tmux
 
 列表按 `TmuxSession` 聚类，并按真实 `WindowIndex` 展示。`SessionName` 始终是 Pane 中的 Codex 会话名；shell Pane 留空。同一 tmux window 可以同时保存 Codex 和 shell Pane。
 
-直接回车选择全部时，每个 tmux session 自动保存为独立的同名 workspace。例如来源是 `HDOnlineMAP` 和 `Multimodal-GEO-roadnet`，就分别写入两个 JSON。自动派生的文件直接覆盖旧结果。显式输入编号时，JSON window 顺序遵循输入顺序。
+保存菜单默认全选；直接按 `Enter` 时，每个 tmux session 自动保存为独立的同名 workspace。例如来源是 `HDOnlineMAP` 和 `Multimodal-GEO-roadnet`，就分别写入两个 JSON。自动派生的文件直接覆盖旧结果。JSON window 顺序遵循勾选顺序。
 
 指定 `-n` 会合并为一个 workspace：
 
@@ -118,7 +114,7 @@ WTwork open -n 地图项目
 WTwork open -tmux
 ```
 
-新版 JSON 根据根级 `mode` 自动选择恢复器，`-n` 已足够。名称不存在时会显示最多三个相似名称。`open -tmux` 会列出所有 v2 `mode=tmux` workspace，可用逗号多选；它们按输入顺序打开在同一个新 Windows Terminal window 中，每个 workspace 一个 Tab，直接回车取消。已有同名 live tmux session 时直接附着，否则重建。
+新版 JSON 根据根级 `mode` 自动选择恢复器，`-n` 已足够。名称不存在时会显示最多三个相似名称。`open -tmux` 会列出所有 v2 `mode=tmux` workspace，初始不选中任何项；用 `Space` 多选后按 `Enter`，它们会按勾选顺序打开在同一个新 Windows Terminal window 中，每个 workspace 一个 Tab。未选择时按 `Enter` 或按 `Esc` 都会取消。已有同名 live tmux session 时直接附着，否则重建。
 
 恢复时 Codex Pane 使用精确 Session UUID 执行 `codex resume <UUID>`，shell Pane 启动登录 zsh。
 

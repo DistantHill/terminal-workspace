@@ -6,10 +6,12 @@ param(
     [switch]$Tmux,
     [switch]$All,
     [switch]$Force,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [scriptblock]$SelectionKeyReader
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "Interactive-Selection.ps1")
 $dataRoot = if ($env:WTWORK_DATA_HOME) {
     [IO.Path]::GetFullPath($env:WTWORK_DATA_HOME)
 } elseif ($env:LOCALAPPDATA) {
@@ -238,8 +240,6 @@ for ($index = 0; $index -lt $sessions.Count; $index++) {
     $sessions[$index].Index = $index + 1
 }
 
-$sessions | Format-Table Index,TmuxSession,WindowIndex,Title,Mode,Panes,SessionName,SessionId,Directory,ExistingWorkspace -AutoSize
-
 if ($All) {
     $selectedSessions = $sessions
 } else {
@@ -253,75 +253,53 @@ if ($All) {
             })
             Write-Host "保存目标：按 TmuxSession 分别写入 [$($automaticNames -join '], [')]；同名文件自动覆盖。"
         }
-        $prompt = "输入 tmux window 编号（逗号分隔；直接回车保存全部）"
     } else {
         $targetName = if ($explicitName) { ConvertTo-WorkspaceName -Value $Name -Mode 'terminal' } else { 'TempTab' }
         $overwriteNote = if ($explicitName) { "同名文件存在时会要求确认" } else { "同名文件自动覆盖" }
         Write-Host "保存目标：写入 workspace [$targetName]，$overwriteNote；每个选中分组恢复为一个新 Tab。"
-        $prompt = "输入 Ubuntu Tab/Pane 编号（逗号分隔；同一 Tab 用 + 连接；直接回车保存全部）"
     }
-    $selection = Read-Host $prompt
-    if ([string]::IsNullOrWhiteSpace($selection)) {
-        $selectedSessions = $sessions
-        if ($Tmux -and -not $explicitName) {
-            Write-Host "未输入编号：将保存全部 window，并按 TmuxSession 聚类为独立 workspace。"
-        } elseif ($Tmux) {
-            Write-Host "未输入编号：将保存全部 window 到 workspace [$targetName]。"
-        } else {
-            Write-Host "未输入编号：将保存全部 Tab/Pane 到 workspace [$targetName]。"
-        }
-    } else {
-        $selectedSessions = @(
-            foreach ($selectionGroup in ($selection -split ',')) {
-                $tokens = @($selectionGroup -split '\+' | ForEach-Object { $_.Trim() })
-                if ($tokens | Where-Object { $_ -notmatch '^\d+$' }) {
-                    throw "One or more selected numbers are invalid."
-                }
-                $indexes = @($tokens | ForEach-Object { [int]$_ })
-                if ($indexes | Where-Object { $_ -lt 1 -or $_ -gt $sessions.Count }) {
-                    throw "One or more selected numbers are invalid."
-                }
-                if ($Tmux -and $indexes.Count -gt 1) {
-                    throw "tmux windows are already grouped; do not join them with '+'."
-                }
-                $chosen = @($indexes | ForEach-Object { $sessions[$_ - 1] })
-                if ($chosen.Count -eq 1) {
-                    $chosen[0]
-                    continue
-                }
-                if ($chosen | Where-Object { $_.Panes -ne 1 -or $_.Mode -eq "tmux" }) {
-                    throw "Only ungrouped single panes can be joined with '+'."
-                }
-                $joinedPanes = @(
-                    for ($paneIndex = 0; $paneIndex -lt $chosen.Count; $paneIndex++) {
-                        $pane = $chosen[$paneIndex].PanesData[0]
-                        [pscustomobject]@{
-                            Index = $paneIndex
-                            Directory = $pane.Directory
-                            Mode = $pane.Mode
-                            SessionId = $pane.SessionId
-                            SessionName = $pane.SessionName
-                            Active = $paneIndex -eq 0
-                        }
-                    }
-                )
-                [pscustomobject]@{
-                    Index = $chosen[0].Index
-                    Title = $chosen[0].Title
-                    Directory = $joinedPanes[0].Directory
-                    Mode = "native"
-                    Panes = $joinedPanes.Count
-                    SessionName = ($joinedPanes | Where-Object SessionName | ForEach-Object SessionName) -join " | "
-                    TmuxSession = ""
-                    SessionId = ""
-                    ExistingWorkspace = ""
-                    PanesData = $joinedPanes
-                    Layout = New-SequentialLayout -PaneCount $joinedPanes.Count
-                }
+    $menuItems = @(
+        foreach ($session in $sessions) {
+            $label = if ($Tmux) {
+                "$($session.TmuxSession)  window $($session.WindowIndex)  $($session.Title)  ($($session.Panes) panes)  $($session.SessionName)"
+            } else {
+                "$($session.Title)  ($($session.Panes) panes)  $($session.SessionName)"
             }
-        )
-        Write-Host "已选择 $($selectedSessions.Count) 个分组，保存顺序遵循输入顺序。"
+            [pscustomobject]@{ Label = $label; Groupable = -not $Tmux -and $session.Panes -eq 1 }
+        }
+    )
+    $selectionResult = Select-WTworkItems -Items $menuItems -Title "选择本次要保存的项目" -DefaultAll -AllowGrouping:(-not $Tmux) -KeyReader $SelectionKeyReader
+    if ($selectionResult.Indexes.Count -eq 0) {
+        Write-Host "没有选中项目：已取消保存，没有写入或覆盖 workspace。"
+        exit 0
     }
+    $emittedGroups = @{}
+    $selectedSessions = @(
+        foreach ($selectedIndex in $selectionResult.Indexes) {
+            $groupId = $selectionResult.Groups[$selectedIndex]
+            if ($groupId -and $emittedGroups[$groupId]) { continue }
+            $chosen = if ($groupId) {
+                $emittedGroups[$groupId] = $true
+                @($selectionResult.Indexes | Where-Object { $selectionResult.Groups[$_] -eq $groupId } | ForEach-Object { $sessions[$_] })
+            } else {
+                @($sessions[$selectedIndex])
+            }
+            if ($chosen.Count -eq 1) { $chosen[0]; continue }
+            $joinedPanes = @(
+                for ($paneIndex = 0; $paneIndex -lt $chosen.Count; $paneIndex++) {
+                    $pane = $chosen[$paneIndex].PanesData[0]
+                    [pscustomobject]@{ Index = $paneIndex; Directory = $pane.Directory; Mode = $pane.Mode; SessionId = $pane.SessionId; SessionName = $pane.SessionName; Active = $paneIndex -eq 0 }
+                }
+            )
+            [pscustomobject]@{
+                Index = $chosen[0].Index; Title = $chosen[0].Title; Directory = $joinedPanes[0].Directory; Mode = "native"
+                Panes = $joinedPanes.Count; SessionName = ($joinedPanes | Where-Object SessionName | ForEach-Object SessionName) -join " | "
+                TmuxSession = ""; SessionId = ""; ExistingWorkspace = ""; PanesData = $joinedPanes
+                Layout = New-SequentialLayout -PaneCount $joinedPanes.Count
+            }
+        }
+    )
+    Write-Host "已选择 $($selectionResult.Indexes.Count) 项，得到 $($selectedSessions.Count) 个保存分组；顺序遵循勾选顺序。"
 }
 
 $unresolved = @(

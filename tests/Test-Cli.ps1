@@ -1,4 +1,10 @@
 $ErrorActionPreference = 'Stop'
+function New-TestKeyReader {
+    param([string[]]$Keys)
+    $queue = [Collections.Generic.Queue[string]]::new()
+    foreach ($key in $Keys) { $queue.Enqueue($key) }
+    { $queue.Dequeue() }.GetNewClosure()
+}
 $entry = Join-Path $PSScriptRoot '../TerminalWorkspace.ps1'
 $testDataRoot = Join-Path ([IO.Path]::GetTempPath()) "wtwork-cli-$([guid]::NewGuid())"
 $workspaceDirectory = Join-Path $testDataRoot 'workspaces'
@@ -23,8 +29,8 @@ try {
         throw 'Bare wtwork must open TempTab as a terminal workspace.'
     }
 
-    function Read-Host { '2,1' }
-    $multiPlans = @(& $entry open -Tmux -DryRun | ConvertFrom-Json)
+    $multiKeys = New-TestKeyReader @('DownArrow', 'Spacebar', 'UpArrow', 'Spacebar', 'Enter')
+    $multiPlans = @(& $entry open -Tmux -DryRun -SelectionKeyReader $multiKeys | ConvertFrom-Json)
     $payloadNames = @(
         foreach ($plan in $multiPlans) {
             $pythonIndex = [Array]::IndexOf($plan.arguments, 'python3')
@@ -40,11 +46,10 @@ try {
         throw 'Tmux workspace selection must follow input order in one Windows Terminal window.'
     }
 
-    function Read-Host { '' }
-    $cancelOutput = (& $entry open -Tmux 6>&1 | Out-String)
+    $cancelOutput = (& $entry open -Tmux -SelectionKeyReader (New-TestKeyReader @('Enter')) 6>&1 | Out-String)
     if (
         $cancelOutput -notmatch '同一个新 Windows Terminal window' -or
-        $cancelOutput -notmatch '未输入编号：已取消打开，没有启动任何 workspace'
+        $cancelOutput -notmatch '没有选中 workspace：已取消打开，没有启动任何 workspace'
     ) {
         throw 'Tmux workspace browsing must explain and confirm the direct-Enter cancellation result.'
     }
@@ -66,12 +71,11 @@ try {
         $global:LASTEXITCODE = 0
         if ($args -contains 'wslpath') { '/scanner.sh' } else { $global:cliSaveRows }
     }
-    function Read-Host { '' }
-    $namedSaveOutput = (& $entry save -n cli-save -DryRun | Out-String)
+    $namedSaveOutput = (& $entry save -n cli-save -DryRun -SelectionKeyReader (New-TestKeyReader @('Enter')) | Out-String)
     $namedSave = $namedSaveOutput.Substring($namedSaveOutput.IndexOf('{')) | ConvertFrom-Json
-    $defaultSaveOutput = (& $entry save -DryRun | Out-String)
+    $defaultSaveOutput = (& $entry save -DryRun -SelectionKeyReader (New-TestKeyReader @('Enter')) | Out-String)
     $defaultSave = $defaultSaveOutput.Substring($defaultSaveOutput.IndexOf('{')) | ConvertFrom-Json
-    $legacySaveOutput = (& $entry save legacy-save -DryRun | Out-String)
+    $legacySaveOutput = (& $entry save legacy-save -DryRun -SelectionKeyReader (New-TestKeyReader @('Enter')) | Out-String)
     $legacySave = $legacySaveOutput.Substring($legacySaveOutput.IndexOf('{')) | ConvertFrom-Json
     if (
         $namedSave.name -ne 'cli-save' -or

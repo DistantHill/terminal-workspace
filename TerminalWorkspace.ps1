@@ -10,10 +10,12 @@ param(
     [string]$Name,
     [switch]$Tmux,
     [switch]$Force,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [scriptblock]$SelectionKeyReader
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "Interactive-Selection.ps1")
 $dataRoot = if ($env:WTWORK_DATA_HOME) {
     [IO.Path]::GetFullPath($env:WTWORK_DATA_HOME)
 } elseif ($env:LOCALAPPDATA) {
@@ -71,7 +73,7 @@ if ([string]::IsNullOrWhiteSpace($Name) -and -not [string]::IsNullOrWhiteSpace($
 
 switch ($action) {
     "save" {
-        & (Join-Path $PSScriptRoot "Save-TerminalWorkspace.ps1") -Name $Name -Tmux:$Tmux -Force:$Force -DryRun:$DryRun
+        & (Join-Path $PSScriptRoot "Save-TerminalWorkspace.ps1") -Name $Name -Tmux:$Tmux -Force:$Force -DryRun:$DryRun -SelectionKeyReader $SelectionKeyReader
         exit $LASTEXITCODE
     }
     "list" {
@@ -121,22 +123,16 @@ switch ($action) {
                 for ($index = 0; $index -lt $tmuxWorkspaces.Count; $index++) {
                     $tmuxWorkspaces[$index].Index = $index + 1
                 }
-                $tmuxWorkspaces | Format-Table Index,Name,Windows -AutoSize | Out-Host
-                Write-Host "打开方式：可输入多个编号；将按输入顺序在同一个新 Windows Terminal window 中打开，每个 workspace 一个 Tab。"
-                $selection = Read-Host "输入 tmux workspace 编号（逗号分隔；直接回车取消本次打开）"
-                if ([string]::IsNullOrWhiteSpace($selection)) {
-                    Write-Host "未输入编号：已取消打开，没有启动任何 workspace。"
+                Write-Host "打开方式：可勾选多个 workspace；将按勾选顺序在同一个新 Windows Terminal window 中打开，每个 workspace 一个 Tab。"
+                $menuItems = @($tmuxWorkspaces | ForEach-Object {
+                    [pscustomobject]@{ Label = "$($_.Name)  ($($_.Windows) windows)"; Groupable = $false }
+                })
+                $selectionResult = Select-WTworkItems -Items $menuItems -Title "选择本次要打开的 tmux workspace" -KeyReader $SelectionKeyReader
+                if ($selectionResult.Indexes.Count -eq 0) {
+                    Write-Host "没有选中 workspace：已取消打开，没有启动任何 workspace。"
                     exit 0
                 }
-                $tokens = @($selection -split ',' | ForEach-Object { $_.Trim() })
-                if ($tokens | Where-Object { $_ -notmatch '^\d+$' }) {
-                    throw "One or more selected workspace numbers are invalid."
-                }
-                $indexes = @($tokens | ForEach-Object { [int]$_ })
-                if ($indexes | Where-Object { $_ -lt 1 -or $_ -gt $tmuxWorkspaces.Count }) {
-                    throw "One or more selected workspace numbers are invalid."
-                }
-                $selectedWorkspaces = @($indexes | ForEach-Object { $tmuxWorkspaces[$_ - 1] })
+                $selectedWorkspaces = @($selectionResult.Indexes | ForEach-Object { $tmuxWorkspaces[$_] })
                 Write-Host "将打开：[$($selectedWorkspaces.Name -join '], [')]。"
                 $sharedWindowTarget = "WTwork-open-$PID"
                 if ($DryRun) {

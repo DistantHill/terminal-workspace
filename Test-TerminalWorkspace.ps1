@@ -22,6 +22,7 @@ if (
     -not $installPlan.entryScript.EndsWith("WTwork\TerminalWorkspace.ps1") -or
     -not $installPlan.workspaceDirectory.EndsWith("WTwork\workspaces") -or
     $installPlan.runtimeFiles -notcontains "TerminalWorkspace.ps1" -or
+    $installPlan.runtimeFiles -notcontains "Interactive-Selection.ps1" -or
     $installPlan.runtimeFiles -notcontains "Restore-TmuxTab.py"
 ) {
     throw "WTwork installation plan is invalid."

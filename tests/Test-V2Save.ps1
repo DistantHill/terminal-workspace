@@ -1,4 +1,26 @@
 $ErrorActionPreference = 'Stop'
+function New-TestKeyReader {
+    param([string[]]$Keys)
+    $queue = [Collections.Generic.Queue[string]]::new()
+    foreach ($key in $Keys) { $queue.Enqueue($key) }
+    { $queue.Dequeue() }.GetNewClosure()
+}
+. (Join-Path $PSScriptRoot '../Interactive-Selection.ps1')
+$groupingItems = 1..4 | ForEach-Object { [pscustomobject]@{ Label = "Pane $_"; Groupable = $true } }
+$groupingKeys = @(
+    'DownArrow', 'DownArrow', 'Spacebar', 'DownArrow', 'Spacebar', 'G',
+    'DownArrow', 'Spacebar', 'DownArrow', 'Spacebar',
+    'DownArrow', 'Spacebar', 'DownArrow', 'Spacebar', 'G',
+    'DownArrow', 'Spacebar', 'DownArrow', 'Spacebar', 'Enter'
+)
+$groupingResult = Select-WTworkItems -Items $groupingItems -Title 'test' -DefaultAll -AllowGrouping -KeyReader (New-TestKeyReader $groupingKeys)
+if (
+    $groupingResult.Groups[0] -ne $groupingResult.Groups[1] -or
+    $groupingResult.Groups[2] -ne $groupingResult.Groups[3] -or
+    $groupingResult.Groups[0] -eq $groupingResult.Groups[2]
+) {
+    throw 'Interactive selection must preserve multiple independent Pane groups.'
+}
 $global:v2SaveRows = @(
     "tmux-tab`t/home/reed/personal`t0`t`t`t`t`t`t`t`t`t`t`t`t`t"
     "shell-tab`t/home/reed/workspace`t0`t`t`t`t`t`t`t`t`t`t`t`t`t`t"
@@ -19,7 +41,6 @@ function wsl.exe {
 $save = Join-Path $PSScriptRoot '../Save-TerminalWorkspace.ps1'
 $output = (& $save -Name regression -All -DryRun -Tmux | Out-String)
 $workspace = $output.Substring($output.IndexOf('{')) | ConvertFrom-Json
-$table = $output.Substring(0, $output.IndexOf('{'))
 
 if ($workspace.schemaVersion -ne 2 -or $workspace.mode -ne 'tmux' -or $workspace.name -ne 'regression') {
     throw 'Expected a named v2 tmux workspace.'
@@ -44,15 +65,7 @@ if (
 ) {
     throw 'Expected v2 tmux panes, session types, and layout.'
 }
-if (
-    $table -notmatch 'TmuxSession\s+WindowIndex\s+Title\s+Mode\s+Panes\s+SessionName' -or
-    $table.IndexOf('my-tmux              0 second') -gt $table.IndexOf('my-tmux              2 config')
-) {
-    throw 'Expected the selection table to follow tmux window indexes.'
-}
-
-function Read-Host { '' }
-$automaticOutput = (& $save -DryRun -Tmux 6>&1 | Out-String)
+$automaticOutput = (& $save -DryRun -Tmux -SelectionKeyReader (New-TestKeyReader @('Enter')) 6>&1 | Out-String)
 $automaticJsonStart = $automaticOutput.IndexOf("[`r`n")
 $automaticWorkspaces = @($automaticOutput.Substring($automaticJsonStart) | ConvertFrom-Json)
 if (
@@ -64,13 +77,13 @@ if (
     $automaticWorkspaces[1].tmux.windows[0].name -ne 'second' -or
     $automaticWorkspaces[1].tmux.windows[1].name -ne 'config' -or
     $automaticOutput -notmatch '按 TmuxSession 分别写入' -or
-    $automaticOutput -notmatch '未输入编号：将保存全部 window，并按 TmuxSession 聚类为独立 workspace'
+    $automaticOutput -notmatch '已选择 3 项，得到 3 个保存分组' -or
+    $automaticOutput.IndexOf('my-tmux  window 0  second') -gt $automaticOutput.IndexOf('my-tmux  window 2  config')
 ) {
     throw 'Expected unnamed tmux saves to split by tmux session and preserve window order.'
 }
 
-function Read-Host { '1+2+3' }
-$terminalOutput = (& $save -Name terminal-test -DryRun 6>&1 | Out-String)
+$terminalOutput = (& $save -Name terminal-test -DryRun -SelectionKeyReader (New-TestKeyReader @('G', 'Enter')) 6>&1 | Out-String)
 $terminalWorkspace = $terminalOutput.Substring($terminalOutput.IndexOf('{')) | ConvertFrom-Json
 $terminalTab = $terminalWorkspace.terminal.tabs[0]
 if (
@@ -85,7 +98,7 @@ if (
     [math]::Abs([double]$terminalTab.layout.splits[0].size - (2.0 / 3.0)) -gt 0.000001 -or
     [double]$terminalTab.layout.splits[1].size -ne 0.5 -or
     $terminalOutput -notmatch '保存目标：写入 workspace \[terminal-test\]' -or
-    $terminalOutput -notmatch '已选择 1 个分组，保存顺序遵循输入顺序'
+    $terminalOutput -notmatch '已选择 3 项，得到 1 个保存分组'
 ) {
     throw 'Expected a v2 terminal workspace with one evenly split three-pane tab.'
 }
@@ -117,9 +130,9 @@ try {
     }
 }
 
-function Read-Host { '3,1,2' }
 $global:v2SaveRows = $baseV2SaveRows
-$orderedOutput = (& $save -Name ordered -DryRun -Tmux | Out-String)
+$orderedKeys = @('Spacebar', 'DownArrow', 'Spacebar', 'DownArrow', 'Spacebar', 'Spacebar', 'DownArrow', 'Spacebar', 'DownArrow', 'Spacebar', 'Enter')
+$orderedOutput = (& $save -Name ordered -DryRun -Tmux -SelectionKeyReader (New-TestKeyReader $orderedKeys) | Out-String)
 $orderedWorkspace = $orderedOutput.Substring($orderedOutput.IndexOf('{')) | ConvertFrom-Json
 if (
     $orderedWorkspace.tmux.windows[0].name -ne 'my-tmux-config' -or

@@ -16,7 +16,6 @@ $save = Join-Path $PSScriptRoot '../Save-TerminalWorkspace.ps1'
 foreach ($tmuxOnly in @($false, $true)) {
     $output = (& $save -Name regression -All -DryRun -Tmux:$tmuxOnly | Out-String)
     $workspace = $output.Substring($output.IndexOf('{')) | ConvertFrom-Json
-    $table = $output.Substring(0, $output.IndexOf('{'))
     if ($tmuxOnly) {
         $windows = @($workspace.tmux.windows)
         if (
@@ -24,8 +23,7 @@ foreach ($tmuxOnly in @($false, $true)) {
             $windows.Count -ne 3 -or
             $windows[2].panes.Count -ne 3 -or
             $windows[2].panes[0].sessionId -ne 'thread-a' -or
-            $windows[2].layout -ne 'layout-a' -or
-            $table -notmatch 'TmuxSession\s+WindowIndex\s+Title\s+Mode\s+Panes\s+SessionName'
+            $windows[2].layout -ne 'layout-a'
         ) {
             throw 'Expected distinct tmux windows, panes, session names, and layouts.'
         }

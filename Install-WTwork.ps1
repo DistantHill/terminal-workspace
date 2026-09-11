@@ -19,6 +19,7 @@ $runtimeFiles = @(
     "TerminalWorkspace.ps1"
     "Save-TerminalWorkspace.ps1"
     "Open-TerminalWorkspace.ps1"
+    "Interactive-Selection.ps1"
     "Get-WslTerminalSessions.py"
     "Get-WslTerminalSessions.sh"
     "Restore-TmuxTab.py"
