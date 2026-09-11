@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import json
 import os
 import re
 import sqlite3
@@ -65,7 +66,7 @@ def resolve_codex_session(process_path, environment):
     connection = sqlite3.connect(f"file:{state_database}?mode=ro", uri=True)
     row = connection.execute(
         f"""
-        select id, coalesce(nullif(name, ''), '')
+        select id, coalesce(nullif(name, ''), ''), title, preview
         from threads
         where id in ({placeholders}) and source = 'cli'
         order by recency_at_ms desc, updated_at_ms desc
@@ -75,7 +76,20 @@ def resolve_codex_session(process_path, environment):
     ).fetchone()
     connection.close()
 
-    return row if row else (session_id, session_name)
+    if not row:
+        return session_id, session_name
+    if row[1]:
+        return row[0], row[1]
+
+    indexed_name = ""
+    index_path = os.path.join(state_directory, "session_index.jsonl")
+    if os.path.exists(index_path):
+        with open(index_path, encoding="utf-8") as index_file:
+            for line in index_file:
+                entry = json.loads(line)
+                if entry.get("id") == row[0] and entry.get("thread_name"):
+                    indexed_name = entry["thread_name"]
+    return row[0], indexed_name or row[2] or row[3]
 
 
 def tmux_socket(environment):

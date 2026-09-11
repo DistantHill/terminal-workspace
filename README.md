@@ -95,7 +95,7 @@ WTwork save -n 地图项目
 WTwork save -tmux
 ```
 
-列表按 `TmuxSession` 聚类，并按真实 `WindowIndex` 展示。`SessionName` 只读取 Codex 数据库 `threads.name` 中的简短会话名；没有名称时留空，不使用可能包含完整首条消息的 `threads.title`。shell Pane 也留空。同一 tmux window 可以同时保存 Codex 和 shell Pane。
+列表按 `TmuxSession` 聚类，并按真实 `WindowIndex` 展示。`SessionName` 按 Codex 的存储版本读取：先取 SQLite `threads.name`；legacy 线程为空时，取 `session_index.jsonl` 中同一 ID 最后一条非空 `thread_name`；仍未命名时才回退到 `threads.title` 或 `preview`。保存菜单会把长回退值限制为单行摘要。shell Pane 留空，同一 tmux window 可以同时保存 Codex 和 shell Pane。
 
 保存菜单默认全选；直接按 `Enter` 时，每个 tmux session 自动保存为独立的同名 workspace。例如来源是 `HDOnlineMAP` 和 `Multimodal-GEO-roadnet`，就分别写入两个 JSON。自动派生的文件直接覆盖旧结果。JSON window 顺序遵循勾选顺序。
 

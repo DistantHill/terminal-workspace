@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import pathlib
 import sqlite3
 import tempfile
@@ -27,14 +28,23 @@ class CodexSessionTests(unittest.TestCase):
         )
         self.assertTrue(scanner.is_codex_process(['/usr/local/bin/codex', 'resume', 'thread-a']))
 
-    def test_restored_session_does_not_use_prompt_title_as_name(self):
+    def test_legacy_session_uses_latest_indexed_thread_name(self):
         with tempfile.TemporaryDirectory() as directory:
             database = pathlib.Path(directory) / 'state_5.sqlite'
             connection = sqlite3.connect(database)
-            connection.execute('create table threads (id, name, title, source, recency_at_ms, updated_at_ms)')
-            connection.execute("insert into threads values ('thread-a', '', 'Conversation A', 'cli', 1, 1)")
+            connection.execute('create table threads (id, name, title, preview, source, recency_at_ms, updated_at_ms)')
+            connection.execute("insert into threads values ('thread-a', '', 'Conversation A', 'Preview A', 'cli', 1, 1)")
             connection.commit()
             connection.close()
+            (pathlib.Path(directory) / 'session_index.jsonl').write_text(
+                '\n'.join(
+                    (
+                        json.dumps({'id': 'thread-a', 'thread_name': 'Old Name'}),
+                        json.dumps({'id': 'thread-a', 'thread_name': 'Latest Name'}),
+                    )
+                ),
+                encoding='utf-8',
+            )
             real_scandir = scanner.os.scandir
 
             def scandir(path):
@@ -49,15 +59,28 @@ class CodexSessionTests(unittest.TestCase):
             with patch('os.scandir', side_effect=scandir):
                 self.assertEqual(
                     scanner.resolve_codex_session('/process', environment),
-                    ('thread-a', ''),
+                    ('thread-a', 'Latest Name'),
                 )
+
+    def test_unnamed_session_falls_back_to_title(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = pathlib.Path(directory) / 'state_5.sqlite'
+            connection = sqlite3.connect(database)
+            connection.execute('create table threads (id, name, title, preview, source, recency_at_ms, updated_at_ms)')
+            connection.execute("insert into threads values ('thread-a', '', 'Conversation A', 'Preview A', 'cli', 1, 1)")
+            connection.commit()
+            connection.close()
+            environment = {'CODEX_HOME': directory, 'TERMINAL_CODEX_SESSION_ID': 'thread-a'}
+            real_scandir = scanner.os.scandir
+            with patch('os.scandir', side_effect=lambda path: [] if path == '/process/fd' else real_scandir(path)):
+                self.assertEqual(scanner.resolve_codex_session('/process', environment), ('thread-a', 'Conversation A'))
 
     def test_session_survives_closed_database_descriptor(self):
         with tempfile.TemporaryDirectory() as directory:
             database = pathlib.Path(directory) / 'state_5.sqlite'
             connection = sqlite3.connect(database)
-            connection.execute('create table threads (id, name, title, source, recency_at_ms, updated_at_ms)')
-            connection.execute("insert into threads values ('thread-a', 'Conversation A', '', 'cli', 1, 1)")
+            connection.execute('create table threads (id, name, title, preview, source, recency_at_ms, updated_at_ms)')
+            connection.execute("insert into threads values ('thread-a', 'Conversation A', '', '', 'cli', 1, 1)")
             connection.commit()
             connection.close()
             real_scandir = scanner.os.scandir
