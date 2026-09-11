@@ -14,6 +14,19 @@ with patch('os.scandir', return_value=[]):
 
 
 class CodexSessionTests(unittest.TestCase):
+    def test_vscode_codex_app_server_is_not_interactive_codex(self):
+        self.assertFalse(
+            scanner.is_codex_process(
+                [
+                    '/home/reed/.vscode-server/extensions/openai.chatgpt/bin/codex',
+                    '-c',
+                    'features.code_mode_host=true',
+                    'app-server',
+                ]
+            )
+        )
+        self.assertTrue(scanner.is_codex_process(['/usr/local/bin/codex', 'resume', 'thread-a']))
+
     def test_restored_session_resolves_name_from_codex_home(self):
         with tempfile.TemporaryDirectory() as directory:
             database = pathlib.Path(directory) / 'state_5.sqlite'

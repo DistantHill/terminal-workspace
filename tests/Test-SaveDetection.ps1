@@ -1,12 +1,12 @@
 $ErrorActionPreference = 'Stop'
 $global:saveDetectionRows = @(
-    "tmux-tab`t/home/reed/personal`t0`t`t`t`t`t`t`t`t`t`t`t`t"
-    "shell-tab`t/home/reed/workspace`t0`t`t`t`t`t`t`t`t`t`t`t`t"
-    "tmux-tab`t/project/a`t1`t`t`t`tthread-a`tConversation A`tmy-tmux`t@0`tconfig`tlayout-a`t%8`t1`t1"
-    "tmux-tab`t/project/b`t1`t`t`t`tthread-b`tConversation B`tmy-tmux`t@0`tconfig`tlayout-a`t%10`t2`t0"
-    "tmux-tab`t/project/c`t0`t`t`t`t`t`tmy-tmux`t@0`tconfig`tlayout-a`t%9`t3`t0"
-    "other-tab`t/project/z`t1`t`t`t`tthread-z`tConversation Z`talpha-tmux`t@1`tconfig`tlayout-z`t%11`t1`t1"
-    "tmux-tab`t/project/d`t1`t`t`t`tthread-d`tConversation D`tmy-tmux`t@3`tsecond`tlayout-d`t%13`t1`t1"
+    "tmux-tab`t/home/reed/personal`t0`t`t`t`t`t`t`t`t`t`t`t`t`t`t"
+    "shell-tab`t/home/reed/workspace`t0`t`t`t`t`t`t`t`t`t`t`t`t`t`t"
+    "tmux-tab`t/project/a`t1`t`t`t`tthread-a`tConversation A`tmy-tmux`t@0`t2`tconfig`tlayout-a`t%8`t1`t1"
+    "tmux-tab`t/project/b`t1`t`t`t`tthread-b`tConversation B`tmy-tmux`t@0`t2`tconfig`tlayout-a`t%10`t2`t0"
+    "tmux-tab`t/project/c`t0`t`t`t`t`t`tmy-tmux`t@0`t2`tconfig`tlayout-a`t%9`t3`t0"
+    "other-tab`t/project/z`t1`t`t`t`tthread-z`tConversation Z`talpha-tmux`t@1`t1`tconfig`tlayout-z`t%11`t1`t1"
+    "tmux-tab`t/project/d`t1`t`t`t`tthread-d`tConversation D`tmy-tmux`t@3`t0`tsecond`tlayout-d`t%13`t1`t1"
 )
 function wsl.exe {
     $global:LASTEXITCODE = 0
@@ -16,33 +16,25 @@ $save = Join-Path $PSScriptRoot '../Save-TerminalWorkspace.ps1'
 foreach ($tmuxOnly in @($false, $true)) {
     $output = (& $save -Name regression -All -DryRun -Tmux:$tmuxOnly | Out-String)
     $workspace = $output.Substring($output.IndexOf('{')) | ConvertFrom-Json
-    $layout = @($workspace.projects | Where-Object mode -eq 'layout')
-    if ($layout.Count -ne 1 -or $layout[0].panes.Count -ne 3) {
-        throw 'Expected the three-pane tmux window in save output.'
-    }
-    if ($layout[0].panes[0].sessionId -ne 'thread-a' -or $layout[0].panes[1].sessionId -ne 'thread-b' -or $layout[0].layout.tmux -ne 'layout-a') {
-        throw 'Lost Codex sessions or tmux layout.'
-    }
     $table = $output.Substring(0, $output.IndexOf('{'))
-    $expectedCount = if ($tmuxOnly) { 3 } else { 4 }
-    if ($workspace.projects.Count -ne $expectedCount -or $output -notmatch 'tmux\s+3') {
-        throw 'Incorrect mode or duplicate outer shell.'
-    }
-    if (
-        $table -notmatch 'TmuxSession\s+Title\s+Mode\s+Panes\s+SessionName' -or
-        $table -notmatch 'alpha-tmux\s+config\s+tmux\s+1\s+Conversation Z' -or
-        $table -notmatch 'my-tmux\s+config-2\s+tmux\s+3\s+Conversation A \| Conversation B'
+    if ($tmuxOnly) {
+        $windows = @($workspace.tmux.windows)
+        if (
+            $workspace.mode -ne 'tmux' -or
+            $windows.Count -ne 3 -or
+            $windows[2].panes.Count -ne 3 -or
+            $windows[2].panes[0].sessionId -ne 'thread-a' -or
+            $windows[2].layout -ne 'layout-a' -or
+            $table -notmatch 'TmuxSession\s+WindowIndex\s+Title\s+Mode\s+Panes\s+SessionName'
+        ) {
+            throw 'Expected distinct tmux windows, panes, session names, and layouts.'
+        }
+    } elseif (
+        $workspace.mode -ne 'terminal' -or
+        $workspace.terminal.tabs.Count -ne 1 -or
+        $workspace.terminal.tabs[0].panes[0].directory -ne '/home/reed/workspace'
     ) {
-        throw 'Expected separate Codex SessionName and TmuxSession columns.'
-    }
-    if (
-        $table.IndexOf('alpha-tmux') -gt $table.IndexOf('my-tmux') -or
-        $table -notmatch 'my-tmux\s+second\s+tmux\s+1\s+Conversation D'
-    ) {
-        throw 'Expected distinct windows to be grouped by tmux session.'
-    }
-    if (-not $tmuxOnly -and @($workspace.projects | Where-Object directory -eq '/home/reed/workspace').Count -ne 1) {
-        throw 'Lost the independent shell tab.'
+        throw 'Native save must exclude the outer tmux terminal and preserve the independent shell tab.'
     }
 }
 Write-Host 'Save detection regression tests passed.'

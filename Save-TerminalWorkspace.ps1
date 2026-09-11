@@ -1,6 +1,5 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)]
     [string]$Name,
     [string]$Distribution = "Ubuntu-22.04",
     [string]$Profile = "Ubuntu-22.04",
@@ -19,14 +18,29 @@ $dataRoot = if ($env:WTWORK_DATA_HOME) {
     throw "LOCALAPPDATA is required unless WTWORK_DATA_HOME is set."
 }
 $workspacesDirectory = Join-Path $dataRoot "workspaces"
+$explicitName = -not [string]::IsNullOrWhiteSpace($Name)
 
-if (
-    [string]::IsNullOrWhiteSpace($Name) -or
-    $Name -in @(".", "..") -or
-    $Name -ne [IO.Path]::GetFileName($Name) -or
-    $Name.IndexOfAny([IO.Path]::GetInvalidFileNameChars()) -ge 0
-) {
-    throw "Workspace name is not a valid Windows file name."
+function ConvertTo-WorkspaceName {
+    param([string]$Value, [string]$Mode)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw "Workspace name cannot be empty."
+    }
+    $invalidCharacters = [IO.Path]::GetInvalidFileNameChars()
+    -join @(
+        for ($index = 0; $index -lt $Value.Length; $index++) {
+            $character = $Value[$index]
+            if (
+                $character -in $invalidCharacters -or
+                ($Mode -eq 'tmux' -and $character -eq '.') -or
+                ($index -eq $Value.Length - 1 -and $character -in @('.', ' '))
+            ) {
+                '_'
+            } else {
+                $character
+            }
+        }
+    )
 }
 
 if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
@@ -63,9 +77,10 @@ function New-SequentialLayout {
         activePane = $ActivePane
         splits = @(
             for ($paneIndex = 1; $paneIndex -lt $PaneCount; $paneIndex++) {
+                $remainingPanes = $PaneCount - $paneIndex + 1
                 [ordered]@{
                     direction = "right"
-                    size = 0.5
+                    size = ($remainingPanes - 1) / $remainingPanes
                 }
             }
         )
@@ -84,7 +99,11 @@ function Get-SourceProject {
         return $null
     }
     $sourceWorkspace = Get-Content -LiteralPath $sourcePath -Raw | ConvertFrom-Json
-    $sourceProjects = @($sourceWorkspace.projects)
+    $sourceProjects = if ([int]$sourceWorkspace.schemaVersion -eq 2 -and [string]$sourceWorkspace.mode -eq "terminal") {
+        @($sourceWorkspace.terminal.tabs)
+    } else {
+        @($sourceWorkspace.projects)
+    }
     $index = [int]$TabId
     if ($index -ge $sourceProjects.Count) {
         return $null
@@ -109,8 +128,8 @@ try {
 }
 
 $processes = foreach ($line in $scannerOutput) {
-    $parts = $line -split "`t", 15
-    if ($parts.Count -eq 15) {
+    $parts = $line -split "`t", 16
+    if ($parts.Count -eq 16) {
         [pscustomobject]@{
             Session = $parts[0]
             Directory = $parts[1]
@@ -122,11 +141,12 @@ $processes = foreach ($line in $scannerOutput) {
             SessionName = $parts[7]
             TmuxSession = $parts[8]
             TmuxWindowId = $parts[9]
-            TmuxWindow = $parts[10]
-            TmuxLayout = $parts[11]
-            TmuxPane = $parts[12]
-            TmuxPaneIndex = $parts[13]
-            TmuxPaneActive = $parts[14] -eq "1"
+            TmuxWindowIndex = $parts[10]
+            TmuxWindow = $parts[11]
+            TmuxLayout = $parts[12]
+            TmuxPane = $parts[13]
+            TmuxPaneIndex = $parts[14]
+            TmuxPaneActive = $parts[15] -eq "1"
         }
     }
 }
@@ -137,13 +157,11 @@ if ($Tmux) {
 } else {
     $tmuxTerminalSessions = @($processes | Where-Object { $_.TmuxPane -and $_.Session } | Select-Object -ExpandProperty Session -Unique)
     $candidateProcesses = @($processes | Where-Object {
-        $_.TmuxPane -or $_.Session -notin $tmuxTerminalSessions
+        -not $_.TmuxPane -and $_.Session -notin $tmuxTerminalSessions
     })
     $sessionGroups = @(
         $candidateProcesses | Group-Object {
-            if ($_.TmuxPane) {
-                "tmux`0$($_.Session)`0$($_.TmuxSession)`0$($_.TmuxWindowId)"
-            } elseif ($_.Workspace -and $_.TabId -match '^\d+$') {
+            if ($_.Workspace -and $_.TabId -match '^\d+$') {
                 "managed`0$($_.Workspace)`0$($_.TabId)"
             } else {
                 "native`0$($_.Session)"
@@ -200,6 +218,7 @@ $sessions = @(
             Panes = $panes.Count
             SessionName = ($panes | Where-Object SessionName | ForEach-Object SessionName) -join " | "
             TmuxSession = if ($isTmux) { [string]$firstProcess.TmuxSession } else { "" }
+            WindowIndex = if ($isTmux) { [int]$firstProcess.TmuxWindowIndex } else { 0 }
             SessionId = if ($panes.Count -eq 1) { $panes[0].SessionId } else { "" }
             ExistingWorkspace = [string]$firstProcess.Workspace
             PanesData = $panes
@@ -208,7 +227,7 @@ $sessions = @(
     }
 )
 
-$sessions = @($sessions | Sort-Object TmuxSession)
+$sessions = @($sessions | Sort-Object TmuxSession,WindowIndex)
 
 if ($sessions.Count -eq 0) {
     $kind = if ($Tmux) { "tmux windows" } else { "native Windows Terminal Ubuntu panes" }
@@ -219,16 +238,7 @@ for ($index = 0; $index -lt $sessions.Count; $index++) {
     $sessions[$index].Index = $index + 1
 }
 
-$titleCounts = @{}
-foreach ($session in $sessions) {
-    $baseTitle = $session.Title
-    $titleCounts[$baseTitle] = 1 + [int]$titleCounts[$baseTitle]
-    if ($titleCounts[$baseTitle] -gt 1) {
-        $session.Title = "$baseTitle-$($titleCounts[$baseTitle])"
-    }
-}
-
-$sessions | Format-Table Index,TmuxSession,Title,Mode,Panes,SessionName,SessionId,Directory,ExistingWorkspace -AutoSize
+$sessions | Format-Table Index,TmuxSession,WindowIndex,Title,Mode,Panes,SessionName,SessionId,Directory,ExistingWorkspace -AutoSize
 
 if ($All) {
     $selectedSessions = $sessions
@@ -244,7 +254,11 @@ if ($All) {
     } else {
         $selectedSessions = @(
             foreach ($selectionGroup in ($selection -split ',')) {
-                $indexes = @($selectionGroup -split '\+' | ForEach-Object { [int]$_.Trim() })
+                $tokens = @($selectionGroup -split '\+' | ForEach-Object { $_.Trim() })
+                if ($tokens | Where-Object { $_ -notmatch '^\d+$' }) {
+                    throw "One or more selected numbers are invalid."
+                }
+                $indexes = @($tokens | ForEach-Object { [int]$_ })
                 if ($indexes | Where-Object { $_ -lt 1 -or $_ -gt $sessions.Count }) {
                     throw "One or more selected numbers are invalid."
                 }
@@ -301,59 +315,145 @@ if ($unresolved.Count -gt 0) {
     throw "Codex $($unresolved -join ', ') has no active resumable Session. Open a conversation there, then save again."
 }
 
-$projects = @(
-    foreach ($session in $selectedSessions) {
-        if ($session.PanesData.Count -gt 1) {
-            [ordered]@{
-                name = $session.Title
-                directory = $session.Directory
-                mode = "layout"
-                sessionId = $null
-                sessionName = $null
-                layout = $session.Layout
-                panes = @(
-                    foreach ($pane in $session.PanesData) {
+if ($Tmux -and $explicitName -and -not $DryRun) {
+    $sourceTmuxSessions = @($selectedSessions.TmuxSession | Select-Object -Unique)
+    if ($sourceTmuxSessions.Count -gt 1) {
+        $confirmation = Read-Host "当前有多个 tmux sessions：[$($sourceTmuxSessions -join ', ')]，将保存为 [$Name]，是否确认？(y/N)"
+        if ($confirmation -notin @('y', 'Y', 'yes', 'YES')) {
+            throw "Save cancelled."
+        }
+    }
+}
+
+function New-TmuxWorkspace {
+    param([object[]]$WorkspaceSessions, [string]$WorkspaceName, [bool]$PrefixWindowNames)
+
+    [ordered]@{
+        schemaVersion = 2
+        name = $WorkspaceName
+        mode = "tmux"
+        distribution = $Distribution
+        profile = $Profile
+        tmux = [ordered]@{
+            windows = @(
+                for ($windowIndex = 0; $windowIndex -lt $WorkspaceSessions.Count; $windowIndex++) {
+                    $session = $WorkspaceSessions[$windowIndex]
+                    [ordered]@{
+                        index = $windowIndex
+                        name = if ($PrefixWindowNames) { "$($session.TmuxSession)-$($session.Title)" } else { $session.Title }
+                        layout = if ($session.Layout.tmux) { [string]$session.Layout.tmux } else { $null }
+                        activePane = [int]$session.Layout.activePane
+                        panes = @(
+                            foreach ($pane in $session.PanesData) {
+                                [ordered]@{
+                                    index = $pane.Index
+                                    directory = $pane.Directory
+                                    session_type = $pane.Mode
+                                    sessionId = if ($pane.Mode -eq "codex") { $pane.SessionId } else { $null }
+                                    sessionName = if ($pane.Mode -eq "codex") { $pane.SessionName } else { $null }
+                                }
+                            }
+                        )
+                    }
+                }
+            )
+        }
+    }
+}
+
+$workspaces = if ($Tmux) {
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        @(
+            foreach ($group in ($selectedSessions | Group-Object TmuxSession)) {
+                New-TmuxWorkspace -WorkspaceSessions @($group.Group) -WorkspaceName $group.Name -PrefixWindowNames $false
+            }
+        )
+    } else {
+        $sourceTmuxSessions = @($selectedSessions.TmuxSession | Select-Object -Unique)
+        @(New-TmuxWorkspace -WorkspaceSessions @($selectedSessions) -WorkspaceName $Name -PrefixWindowNames ($sourceTmuxSessions.Count -gt 1))
+    }
+} else {
+    $workspaceName = if ([string]::IsNullOrWhiteSpace($Name)) { "TempTab" } else { $Name }
+    @(
+        [ordered]@{
+            schemaVersion = 2
+            name = $workspaceName
+            mode = "terminal"
+            distribution = $Distribution
+            profile = $Profile
+            terminal = [ordered]@{
+                tabs = @(
+                    for ($tabIndex = 0; $tabIndex -lt $selectedSessions.Count; $tabIndex++) {
+                        $session = $selectedSessions[$tabIndex]
                         [ordered]@{
-                            index = $pane.Index
-                            directory = $pane.Directory
-                            mode = $pane.Mode
-                            sessionId = if ($pane.Mode -eq "codex") { $pane.SessionId } else { $null }
-                            sessionName = if ($pane.Mode -eq "codex") { $pane.SessionName } else { $null }
+                            index = $tabIndex
+                            name = $session.Title
+                            layout = [ordered]@{
+                                activePane = [int]$session.Layout.activePane
+                                splits = @($session.Layout.splits)
+                            }
+                            panes = @(
+                                foreach ($pane in $session.PanesData) {
+                                    [ordered]@{
+                                        index = $pane.Index
+                                        directory = $pane.Directory
+                                        session_type = $pane.Mode
+                                        sessionId = if ($pane.Mode -eq "codex") { $pane.SessionId } else { $null }
+                                        sessionName = if ($pane.Mode -eq "codex") { $pane.SessionName } else { $null }
+                                    }
+                                }
+                            )
                         }
                     }
                 )
             }
-        } else {
-            $pane = $session.PanesData[0]
-            [ordered]@{
-                name = $session.Title
-                directory = $pane.Directory
-                mode = $pane.Mode
-                sessionId = if ($pane.Mode -eq "codex") { $pane.SessionId } else { $null }
-                sessionName = if ($pane.Mode -eq "codex") { $pane.SessionName } else { $null }
-            }
         }
-    }
-)
-
-$workspace = [ordered]@{
-    name = $Name
-    distribution = $Distribution
-    profile = $Profile
-    projects = $projects
+    )
 }
 
-$json = $workspace | ConvertTo-Json -Depth 10
+$workspaceNameRecords = @(
+    foreach ($workspace in $workspaces) {
+        $originalName = [string]$workspace.name
+        $sanitizedName = ConvertTo-WorkspaceName -Value $originalName -Mode $workspace.mode
+        $workspace.name = $sanitizedName
+        [pscustomobject]@{ Original = $originalName; Sanitized = $sanitizedName }
+    }
+)
+$nameChanges = @($workspaceNameRecords | Where-Object { $_.Original -cne $_.Sanitized })
+$nameCollisions = @($workspaceNameRecords | Group-Object { $_.Sanitized.ToLowerInvariant() } | Where-Object Count -gt 1)
+if ($nameCollisions.Count -gt 0) {
+    $collisionNames = @(
+        $nameCollisions | ForEach-Object {
+            "$(@($_.Group.Original) -join ', ') -> $($_.Group[0].Sanitized)"
+        }
+    ) -join '; '
+    throw "Workspace names collide after invalid characters are replaced: $collisionNames"
+}
+
+$json = if ($workspaces.Count -eq 1) {
+    $workspaces[0] | ConvertTo-Json -Depth 10
+} else {
+    ConvertTo-Json -InputObject $workspaces -Depth 10
+}
 if ($DryRun) {
     $json
     exit 0
 }
 
 New-Item -ItemType Directory -Path $workspacesDirectory -Force | Out-Null
-$workspacePath = Join-Path $workspacesDirectory "$Name.json"
-if ((Test-Path -LiteralPath $workspacePath) -and -not $Force) {
-    throw "Workspace '$Name' already exists. Use -Force to replace it."
+foreach ($workspace in $workspaces) {
+    $workspacePath = Join-Path $workspacesDirectory "$($workspace.name).json"
+    if ((Test-Path -LiteralPath $workspacePath) -and -not $Force -and $explicitName) {
+        $confirmation = Read-Host "已有 workspace name $($workspace.name)，是否覆盖？(y/N)"
+        if ($confirmation -notin @('y', 'Y', 'yes', 'YES')) {
+            throw "Save cancelled."
+        }
+    }
+    $workspaceJson = $workspace | ConvertTo-Json -Depth 10
+    Set-Content -LiteralPath $workspacePath -Value $workspaceJson -Encoding utf8
+    $nameChange = $nameChanges | Where-Object Sanitized -CEQ $workspace.name | Select-Object -First 1
+    if ($nameChange) {
+        Write-Host "Workspace name '$($nameChange.Original)' was saved as '$($nameChange.Sanitized)'."
+    }
+    Write-Host "Saved workspace '$($workspace.name)' to $workspacePath"
 }
-
-Set-Content -LiteralPath $workspacePath -Value $json -Encoding utf8
-Write-Host "Saved workspace '$Name' to $workspacePath"

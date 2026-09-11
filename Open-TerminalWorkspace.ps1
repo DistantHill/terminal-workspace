@@ -3,7 +3,8 @@ param(
     [string]$Config = (Join-Path $PSScriptRoot "workspace.json"),
     [switch]$Tmux,
     [switch]$DryRun,
-    [string]$WtPath
+    [string]$WtPath,
+    [string]$WindowTarget
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +17,7 @@ $workspace = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
 $distribution = [string]$workspace.distribution
 $profile = [string]$workspace.profile
 $workspaceName = [string]$workspace.name
+$schemaVersion = [int]$workspace.schemaVersion
 
 if ([string]::IsNullOrWhiteSpace($distribution)) {
     throw "Config field 'distribution' is required."
@@ -23,11 +25,63 @@ if ([string]::IsNullOrWhiteSpace($distribution)) {
 if ([string]::IsNullOrWhiteSpace($profile)) {
     $profile = $distribution
 }
-if (-not $workspace.projects -or $workspace.projects.Count -lt 1) {
-    throw "Config must contain at least one project."
-}
 if ($workspaceName -match '[\x00-\x1F]') {
     throw "Config field 'name' cannot contain control characters."
+}
+
+if ($schemaVersion -eq 2) {
+    $workspaceMode = [string]$workspace.mode
+    if ($workspaceMode -notin @("tmux", "terminal")) {
+        throw "V2 config field 'mode' must be 'tmux' or 'terminal'."
+    }
+    if ($Tmux -and $workspaceMode -ne "tmux") {
+        throw "Workspace '$workspaceName' uses terminal mode, not tmux."
+    }
+    $useTmux = $workspaceMode -eq "tmux"
+    $workspaceProjects = @(
+        $entries = if ($useTmux) { @($workspace.tmux.windows) } else { @($workspace.terminal.tabs) }
+        foreach ($entry in $entries) {
+            $panes = @(
+                foreach ($pane in @($entry.panes)) {
+                    [pscustomobject]@{
+                        index = [int]$pane.index
+                        directory = [string]$pane.directory
+                        mode = [string]$pane.session_type
+                        sessionId = [string]$pane.sessionId
+                        sessionName = [string]$pane.sessionName
+                    }
+                }
+            )
+            $layout = if ($useTmux) {
+                [pscustomobject]@{
+                    activePane = [int]$entry.activePane
+                    splits = @(
+                        for ($paneIndex = 1; $paneIndex -lt $panes.Count; $paneIndex++) {
+                            [pscustomobject]@{ direction = "right"; size = 0.5 }
+                        }
+                    )
+                    tmux = [string]$entry.layout
+                }
+            } else {
+                $entry.layout
+            }
+            [pscustomobject]@{
+                name = [string]$entry.name
+                mode = "layout"
+                panes = $panes
+                layout = $layout
+            }
+        }
+    )
+} elseif ($schemaVersion -eq 0) {
+    $useTmux = [bool]$Tmux
+    $workspaceProjects = @($workspace.projects)
+} else {
+    throw "Unsupported workspace schemaVersion: $schemaVersion"
+}
+
+if ($workspaceProjects.Count -lt 1) {
+    throw "Config must contain at least one tab or window."
 }
 
 $wtExecutable = "wt.exe"
@@ -177,15 +231,15 @@ function Get-WslPaneArguments {
 }
 
 $tabs = @(
-    for ($tabIndex = 0; $tabIndex -lt @($workspace.projects).Count; $tabIndex++) {
-        Get-NormalizedTab -Project @($workspace.projects)[$tabIndex] -TabIndex $tabIndex
+    for ($tabIndex = 0; $tabIndex -lt $workspaceProjects.Count; $tabIndex++) {
+        Get-NormalizedTab -Project $workspaceProjects[$tabIndex] -TabIndex $tabIndex
     }
 )
 
-$windowTarget = if ($workspaceName) { $workspaceName } else { "new" }
+$windowTarget = if ($WindowTarget) { $WindowTarget } elseif ($workspaceName) { $workspaceName } else { "new" }
 $wtArguments = @("--window", $windowTarget)
 
-if ($Tmux) {
+if ($useTmux) {
     if ($workspaceName -match '[:.]') {
         throw "tmux session names cannot contain ':' or '.'. Rename the workspace before using --tmux."
     }
@@ -251,7 +305,7 @@ if ($Tmux) {
 if ($DryRun) {
     [pscustomobject]@{
         executable = $wtExecutable
-        renderer = if ($Tmux) { "tmux" } else { "windows-terminal" }
+        renderer = if ($useTmux) { "tmux" } else { "windows-terminal" }
         arguments = $wtArguments
     } | ConvertTo-Json -Depth 5
     exit 0

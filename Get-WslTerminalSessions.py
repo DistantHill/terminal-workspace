@@ -92,7 +92,11 @@ def tmux_output(socket_path, *arguments):
     ).stdout.splitlines()
 
 
-def print_row(process, terminal_session, workspace, tmux_fields=("", "", "", "", "", "", "")):
+def is_codex_process(arguments):
+    return any(os.path.basename(argument) == "codex" for argument in arguments) and "app-server" not in arguments
+
+
+def print_row(process, terminal_session, workspace, tmux_fields=("", "", "", "", "", "", "", "")):
     fields = (
         terminal_session,
         process["directory"],
@@ -125,7 +129,7 @@ for process in os.scandir("/proc"):
             for argument in open(os.path.join(process.path, "cmdline"), "rb").read().split(b"\0")
             if argument
         ]
-        is_codex = any(os.path.basename(argument) == "codex" for argument in arguments)
+        is_codex = is_codex_process(arguments)
         session_id, session_name = ("", "")
         if is_codex:
             session_id, session_name = resolve_codex_session(process.path, environment)
@@ -203,13 +207,14 @@ for socket_path in dict.fromkeys(process["tmux_socket"] for process in tmux_proc
                 separator.join(
                     (
                         "#{window_id}",
+                        "#{window_index}",
                         "#{window_name}",
                         "#{window_layout}",
                     )
                 ),
             )
             for window_line in window_lines:
-                window_id, window_name, layout = window_line.split(separator, 2)
+                window_id, window_index, window_name, layout = window_line.split(separator, 3)
                 pane_lines = tmux_output(
                     socket_path,
                     "list-panes",
@@ -246,6 +251,7 @@ for socket_path in dict.fromkeys(process["tmux_socket"] for process in tmux_proc
                     tmux_fields = (
                         session_name,
                         window_id,
+                        window_index,
                         window_name,
                         layout,
                         pane_id,

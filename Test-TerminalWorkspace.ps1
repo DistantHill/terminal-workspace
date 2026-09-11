@@ -1,11 +1,15 @@
 $ErrorActionPreference = "Stop"
 
+& (Join-Path $PSScriptRoot "tests/Test-V2Save.ps1")
+& (Join-Path $PSScriptRoot "tests/Test-Cli.ps1")
 & (Join-Path $PSScriptRoot "tests/Test-SaveDetection.ps1")
 
 $launcher = Join-Path $PSScriptRoot "Open-TerminalWorkspace.ps1"
 $codexConfig = Join-Path $PSScriptRoot "workspace.example.json"
 $shellConfig = Join-Path $PSScriptRoot "tests\shell-workspace.json"
 $legacyTmuxConfig = Join-Path $PSScriptRoot "tests\tmux-workspace.json"
+$v2TmuxConfig = Join-Path $PSScriptRoot "tests\tmux-v2-workspace.json"
+$v2TerminalConfig = Join-Path $PSScriptRoot "tests\terminal-v2-workspace.json"
 $tmuxThreeWindowConfig = Join-Path $PSScriptRoot "tests\tmux-three-window-workspace.json"
 $installer = Join-Path $PSScriptRoot "Install-WTwork.ps1"
 $bootstrap = Join-Path $PSScriptRoot "install.ps1"
@@ -92,6 +96,40 @@ if (
     $legacyPayload.tabs[0].panes.Count -ne 2
 ) {
     throw "Legacy tmux layout compatibility was not preserved."
+}
+
+$v2TmuxPlan = & $launcher -Config $v2TmuxConfig -DryRun | ConvertFrom-Json
+$v2TmuxPythonIndex = [Array]::IndexOf($v2TmuxPlan.arguments, "python3")
+$v2TmuxPayload = [Text.Encoding]::UTF8.GetString(
+    [Convert]::FromBase64String($v2TmuxPlan.arguments[$v2TmuxPythonIndex + 2])
+) | ConvertFrom-Json
+if (
+    $v2TmuxPlan.renderer -ne "tmux" -or
+    $v2TmuxPayload.workspaceName -ne "tmux-v2-test" -or
+    $v2TmuxPayload.tabs[0].name -ne "mixed" -or
+    $v2TmuxPayload.tabs[0].layout.activePane -ne 1 -or
+    $v2TmuxPayload.tabs[0].layout.tmux -ne "2919,129x31,0,0{64x31,0,0,1,64x31,65,0,2}" -or
+    $v2TmuxPayload.tabs[0].panes[0].mode -ne "codex" -or
+    $v2TmuxPayload.tabs[0].panes[1].mode -ne "shell"
+) {
+    throw "V2 tmux mode must select the renderer and normalize its windows."
+}
+
+$v2TerminalPlan = & $launcher -Config $v2TerminalConfig -DryRun | ConvertFrom-Json
+$v2TerminalSplits = @($v2TerminalPlan.arguments | Where-Object { $_ -eq "split-pane" })
+$v2TerminalSizes = for ($index = 0; $index -lt $v2TerminalPlan.arguments.Count; $index++) {
+    if ($v2TerminalPlan.arguments[$index] -eq "--size") { $v2TerminalPlan.arguments[$index + 1] }
+}
+if (
+    $v2TerminalPlan.renderer -ne "windows-terminal" -or
+    $v2TerminalSplits.Count -ne 2 -or
+    $v2TerminalSizes[0] -ne "0.66666667" -or
+    $v2TerminalSizes[1] -ne "0.5" -or
+    $v2TerminalPlan.arguments -notcontains "exec codex resume thread-a" -or
+    $v2TerminalPlan.arguments -notcontains "exec codex" -or
+    @($v2TerminalPlan.arguments | Where-Object { $_ -eq "zsh" }).Count -ne 3
+) {
+    throw "V2 terminal mode must preserve its tab panes and session types."
 }
 
 $tmuxThreeWindowPlan = & $launcher -Config $tmuxThreeWindowConfig -Tmux -DryRun | ConvertFrom-Json

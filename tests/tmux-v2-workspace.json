@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "name": "tmux-v2-test",
+  "mode": "tmux",
+  "distribution": "Ubuntu-22.04",
+  "profile": "Ubuntu-22.04",
+  "tmux": {
+    "windows": [
+      {
+        "index": 0,
+        "name": "mixed",
+        "layout": "2919,129x31,0,0{64x31,0,0,1,64x31,65,0,2}",
+        "activePane": 1,
+        "panes": [
+          {
+            "index": 0,
+            "directory": "/home/test-user/project",
+            "session_type": "codex",
+            "sessionId": "thread-a",
+            "sessionName": "Conversation A"
+          },
+          {
+            "index": 1,
+            "directory": "/home/test-user",
+            "session_type": "shell",
+            "sessionId": null,
+            "sessionName": null
+          }
+        ]
+      }
+    ]
+  }
+}

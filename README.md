@@ -41,9 +41,9 @@ pwsh -ExecutionPolicy Bypass -File .\Install-WTwork.ps1
 
 ```powershell
 WTwork list
-WTwork save 地图1
-WTwork 地图1
-WTwork 地图1 --tmux
+WTwork save -n 地图1
+WTwork open -n 地图1
+WTwork open -tmux
 ```
 
 只检查安装计划、不修改文件或 PATH：
@@ -61,57 +61,94 @@ pwsh
 cd '<clone-path>\terminal-workspace'
 ```
 
-## 默认：Windows Terminal 原生 Tab/Pane
-
-保存：
+## 命令与默认行为
 
 ```powershell
-.\TerminalWorkspace.ps1 save 地图1
+WTwork
+WTwork save [-n <workspace>] [-tmux] [-Force]
+WTwork open [-n <workspace>] [-tmux]
+WTwork list
 ```
 
-默认保存同时列出原生 shell/Codex Tab 和 tmux windows；tmux 自动按 window 聚合全部 pane，保留布局及 Codex 会话，不重复列出其外层 shell。无需将 tmux Tab 切回前台。Codex 会话解析优先按会话锁定位数据目录；恢复进程没有会话锁时，则使用保留的 Session ID 查询 `CODEX_HOME` 中版本号最高的 state 数据库。
+`WTwork` 等同于 `WTwork open -n TempTab`。旧形式 `WTwork 地图1`、`WTwork save 地图1` 和 `--tmux` 仍然兼容；新脚本应使用 `open`、`-n`、`-tmux`。
 
-列表中的已标记 Pane 会自动聚合成同一个 Tab。第一次登记手动创建的 Windows Terminal Pane 时，用 `+` 表示同一个 Tab、用逗号分隔不同 Tab：
+### Windows Terminal Tab/Pane
+
+不带 `-tmux` 时只扫描原生 Tab/Pane：
+
+```powershell
+WTwork save
+WTwork save -n 地图项目
+```
+
+不指定 `-n` 时保存为 `TempTab.json` 并自动覆盖。每个选中分组恢复为一个新 Tab，并保留 Pane 布局。指定 `-n` 时保存为对应名称；已有同名文件且没有 `-Force` 时才询问是否覆盖。
+
+已标记 Pane 会自动聚合。第一次登记手动创建的 Pane 时，用 `+` 表示同一个 Tab、用逗号分隔不同 Tab：
 
 ```text
 2+3+4,5
 ```
 
-`2+3+4` 会保存为一个三 Pane Tab；第一次登记采用连续向右 50% 分割，所以结果为 50% / 25% / 25%。恢复后，每个 Pane 都带 workspace、Tab 和 Pane 序号标记，后续 `save` 可自动识别分组，不必再次输入 `+`。
+`2+3+4` 保存为一个等宽三 Pane Tab，`5` 单独成为一个 Tab。恢复后的标记使后续保存无需再次输入 `+`。
 
-默认恢复：
-
-```powershell
-.\TerminalWorkspace.ps1 地图1
-```
-
-恢复使用 Windows Terminal 的 `new-tab`、`split-pane` 和 `move-focus`。Codex Pane 使用精确 Session UUID 执行 `codex resume <UUID>`；shell Pane 启动登录 zsh。
-
-## 显式选择 tmux
-
-仅列出并保存 tmux windows（不包含原生 shell Tab）：
+### tmux sessions
 
 ```powershell
-.\TerminalWorkspace.ps1 save 地图1 --tmux
+WTwork save -tmux
 ```
 
-选择列表按 `TmuxSession` 聚类，每个 tmux session 下分别显示其 windows。`TmuxSession` 列表示 window 所属的 tmux session，`SessionName` 列只显示 window 内的 Codex 会话名称。扫描器会枚举同一 tmux server/socket 上的全部 sessions，因此同名 window 可能真实存在于不同 sessions；可通过 `TmuxSession` 列区分其来源。
+列表按 `TmuxSession` 聚类，并按真实 `WindowIndex` 展示。`SessionName` 始终是 Pane 中的 Codex 会话名；shell Pane 留空。同一 tmux window 可以同时保存 Codex 和 shell Pane。
 
-使用 tmux 恢复同一份 workspace：
+直接回车选择全部时，每个 tmux session 自动保存为独立的同名 workspace。例如来源是 `HDOnlineMAP` 和 `Multimodal-GEO-roadnet`，就分别写入两个 JSON。自动派生的文件直接覆盖旧结果。显式输入编号时，JSON window 顺序遵循输入顺序。
+
+指定 `-n` 会合并为一个 workspace：
 
 ```powershell
-.\TerminalWorkspace.ps1 地图1 --tmux
+WTwork save -tmux -n 地图项目
 ```
 
-tmux 映射规则：
+跨多个 tmux sessions 时会列出来源和目标名称并二次确认；`-Force` 不跳过合并确认。合并后的 window 名为 `<TmuxSession>-<WindowName>`，单一来源则保留原名。
 
-- workspace 名称 = tmux session 名称；
-- workspace 中每个逻辑 Tab = 一个 tmux window；
-- 每个逻辑 Pane = 一个 tmux pane。
+名称中的 Windows 非法文件名字符统一替换为 `_`，文件名、JSON 内部名称和恢复出的 tmux session 名称一致。保存后会明确提醒名称变化；多个自动名称清洗后冲突时会在写文件前报错。
 
-如果同名 tmux session 已存在，命令直接附着；不存在时按 workspace 创建完整 session/window/pane 布局。
+### 打开
 
-PowerShell 自身不把 `--tmux` 当作普通 switch，入口脚本已专门兼容该字面参数。直接调用内部脚本时使用 `-Tmux`。
+```powershell
+WTwork open -n 地图项目
+WTwork open -tmux
+```
+
+新版 JSON 根据根级 `mode` 自动选择恢复器，`-n` 已足够。名称不存在时会显示最多三个相似名称。`open -tmux` 会列出所有 v2 `mode=tmux` workspace，可用逗号多选；它们按输入顺序打开在同一个新 Windows Terminal window 中，每个 workspace 一个 Tab，直接回车取消。已有同名 live tmux session 时直接附着，否则重建。
+
+恢复时 Codex Pane 使用精确 Session UUID 执行 `codex resume <UUID>`，shell Pane 启动登录 zsh。
+
+## workspace JSON v2
+
+新文件包含 `schemaVersion: 2` 和根级 `mode`（`tmux` 或 `terminal`）。Codex/shell 类型保存在 `tmux.windows[].panes[].session_type` 或 `terminal.tabs[].panes[].session_type`，布局位于各 window/tab 的 `layout`。例如：
+
+```json
+{
+  "schemaVersion": 2,
+  "name": "地图项目",
+  "mode": "tmux",
+  "distribution": "Ubuntu-22.04",
+  "profile": "Ubuntu-22.04",
+  "tmux": {
+    "windows": [{
+      "index": 0,
+      "name": "并行计算",
+      "layout": "b25f,240x60,0,0[240x29,0,0,1,240x30,0,30,2]",
+      "activePane": 0,
+      "panes": [
+        { "index": 0, "directory": "/home/reed/project", "session_type": "codex", "sessionId": "11111111-1111-4111-8111-111111111111", "sessionName": "流式计算和并行数据一致性" },
+        { "index": 1, "directory": "/home/reed/project", "session_type": "shell", "sessionId": null, "sessionName": null }
+      ]
+    }]
+  }
+}
+```
+
+原生模式的完整示例见 `workspace.example.json`。未带版本号的 v1 JSON 仍可读取；它在未传 `-tmux` 时按 Windows Terminal 恢复，传入时按 tmux 恢复。
 
 ## 其他命令
 
@@ -121,17 +158,16 @@ PowerShell 自身不把 `--tmux` 当作普通 switch，入口脚本已专门兼�
 .\TerminalWorkspace.ps1 list
 ```
 
-同名 workspace 默认拒绝覆盖：
+强制覆盖显式命名的 workspace：
 
 ```powershell
-.\Save-TerminalWorkspace.ps1 -Name 地图1 -Force
+WTwork save -n 地图1 -Force
 ```
 
 检查启动参数但不打开 Terminal：
 
 ```powershell
-.\Open-TerminalWorkspace.ps1 -Config .\workspaces\地图1.json -DryRun
-.\Open-TerminalWorkspace.ps1 -Config .\workspaces\地图1.json -Tmux -DryRun
+.\Open-TerminalWorkspace.ps1 -Config .\workspace.example.json -DryRun
 ```
 
 运行测试：

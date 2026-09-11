@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 2,
+  "name": "terminal-v2-test",
+  "mode": "terminal",
+  "distribution": "Ubuntu-22.04",
+  "profile": "Ubuntu-22.04",
+  "terminal": {
+    "tabs": [
+      {
+        "index": 0,
+        "name": "mixed-tab",
+        "layout": {
+          "activePane": 1,
+          "splits": [
+            { "direction": "right", "size": 0.6666666666666666 },
+            { "direction": "right", "size": 0.5 }
+          ]
+        },
+        "panes": [
+          {
+            "index": 0,
+            "directory": "/home/test-user/project",
+            "session_type": "codex",
+            "sessionId": "thread-a",
+            "sessionName": "Conversation A"
+          },
+          {
+            "index": 1,
+            "directory": "/home/test-user/project",
+            "session_type": "shell",
+            "sessionId": null,
+            "sessionName": null
+          },
+          {
+            "index": 2,
+            "directory": "/home/test-user",
+            "session_type": "codex",
+            "sessionId": null,
+            "sessionName": null
+          }
+        ]
+      }
+    ]
+  }
+}
