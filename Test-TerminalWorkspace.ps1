@@ -6,7 +6,7 @@ $launcher = Join-Path $PSScriptRoot "Open-TerminalWorkspace.ps1"
 $codexConfig = Join-Path $PSScriptRoot "workspace.example.json"
 $shellConfig = Join-Path $PSScriptRoot "tests\shell-workspace.json"
 $legacyTmuxConfig = Join-Path $PSScriptRoot "tests\tmux-workspace.json"
-$map1Config = Join-Path $PSScriptRoot "workspaces\地图1.json"
+$tmuxThreeWindowConfig = Join-Path $PSScriptRoot "tests\tmux-three-window-workspace.json"
 $installer = Join-Path $PSScriptRoot "Install-WTwork.ps1"
 $bootstrap = Join-Path $PSScriptRoot "install.ps1"
 $packageConfig = Join-Path $PSScriptRoot "package.json"
@@ -94,42 +94,42 @@ if (
     throw "Legacy tmux layout compatibility was not preserved."
 }
 
-$map1NativePlan = & $launcher -Config $map1Config -DryRun | ConvertFrom-Json
-$splitIndexes = @(
-    for ($index = 0; $index -lt $map1NativePlan.arguments.Count; $index++) {
-        if ($map1NativePlan.arguments[$index] -eq "split-pane") { $index }
-    }
-)
-if ($map1NativePlan.renderer -ne "windows-terminal" -or $splitIndexes.Count -ne 2) {
-    throw "地图1 must default to one native Windows Terminal tab with three panes."
-}
-foreach ($splitIndex in $splitIndexes) {
-    if (
-        $map1NativePlan.arguments[$splitIndex + 1] -ne "-V" -or
-        $map1NativePlan.arguments[$splitIndex + 2] -ne "--size" -or
-        $map1NativePlan.arguments[$splitIndex + 3] -ne "0.5"
-    ) {
-        throw "地图1 must use two recursive 50% right splits."
-    }
-}
-foreach ($paneIndex in 0..2) {
-    if ($map1NativePlan.arguments -notcontains "TERMINAL_WORKSPACE_PANE_INDEX=$paneIndex") {
-        throw "地图1 native pane $paneIndex is missing its persistent marker."
-    }
-}
-
-$map1TmuxPlan = & $launcher -Config $map1Config -Tmux -DryRun | ConvertFrom-Json
-$map1PythonIndex = [Array]::IndexOf($map1TmuxPlan.arguments, "python3")
-$map1Payload = [Text.Encoding]::UTF8.GetString(
-    [Convert]::FromBase64String($map1TmuxPlan.arguments[$map1PythonIndex + 2])
+$tmuxThreeWindowPlan = & $launcher -Config $tmuxThreeWindowConfig -Tmux -DryRun | ConvertFrom-Json
+$tmuxThreeWindowPythonIndex = [Array]::IndexOf($tmuxThreeWindowPlan.arguments, "python3")
+$tmuxThreeWindowPayload = [Text.Encoding]::UTF8.GetString(
+    [Convert]::FromBase64String($tmuxThreeWindowPlan.arguments[$tmuxThreeWindowPythonIndex + 2])
 ) | ConvertFrom-Json
+$sixPaneTmuxLayout = "c7a6,120x40,0,0{59x40,0,0[59x19,0,0,0,59x20,0,20,3],29x40,60,0[29x19,60,0,1,29x20,60,20,4],30x40,90,0[30x19,90,0,2,30x20,90,20,5]}"
 if (
-    $map1TmuxPlan.renderer -ne "tmux" -or
-    $map1Payload.workspaceName -ne "地图1" -or
-    $map1Payload.tabs.Count -ne 1 -or
-    $map1Payload.tabs[0].panes.Count -ne 3
+    $tmuxThreeWindowPlan.renderer -ne "tmux" -or
+    $tmuxThreeWindowPayload.workspaceName -ne "tmux-three-window-test" -or
+    $tmuxThreeWindowPayload.tabs.Count -ne 3 -or
+    $tmuxThreeWindowPayload.tabs[0].name -ne "six-pane-layout" -or
+    $tmuxThreeWindowPayload.tabs[0].panes.Count -ne 6 -or
+    $tmuxThreeWindowPayload.tabs[0].layout.splits.Count -ne 5 -or
+    $tmuxThreeWindowPayload.tabs[0].layout.tmux -ne $sixPaneTmuxLayout -or
+    $tmuxThreeWindowPayload.tabs[1].name -ne "shell-only" -or
+    $tmuxThreeWindowPayload.tabs[1].panes.Count -ne 1 -or
+    $tmuxThreeWindowPayload.tabs[1].panes[0].mode -ne "shell" -or
+    $tmuxThreeWindowPayload.tabs[1].panes[0].directory -ne "/home/test-user" -or
+    $tmuxThreeWindowPayload.tabs[2].name -ne "codex-new" -or
+    $tmuxThreeWindowPayload.tabs[2].panes.Count -ne 1 -or
+    $tmuxThreeWindowPayload.tabs[2].panes[0].mode -ne "codex" -or
+    $tmuxThreeWindowPayload.tabs[2].panes[0].directory -ne "/home/test-user" -or
+    -not [string]::IsNullOrWhiteSpace($tmuxThreeWindowPayload.tabs[2].panes[0].sessionId)
 ) {
-    throw "地图1 --tmux must map to session 地图1, one window, and three panes."
+    throw "The tmux workspace must map to three windows with 6, 1, and 1 panes."
+}
+$sixPanes = $tmuxThreeWindowPayload.tabs[0].panes
+if (
+    $sixPanes[0].mode -ne "codex" -or $sixPanes[0].sessionId -ne "last" -or $sixPanes[0].directory -ne "/home/test-user" -or
+    $sixPanes[3].mode -ne "codex" -or $sixPanes[3].sessionId -ne "last" -or $sixPanes[3].directory -ne "/home/test-user/workspace" -or
+    $sixPanes[1].mode -ne "codex" -or -not [string]::IsNullOrWhiteSpace($sixPanes[1].sessionId) -or
+    $sixPanes[4].sessionId -ne "01a08f61-8199-7691-85d6-d3eb663c02c9" -or
+    $sixPanes[2].mode -ne "shell" -or $sixPanes[2].directory -ne "/home/test-user" -or
+    $sixPanes[5].mode -ne "shell" -or $sixPanes[5].directory -ne "/home/test-user/workspace"
+) {
+    throw "The six-pane tmux window does not preserve its commands, sessions, or directories."
 }
 
 Write-Host "Terminal Workspace tests passed."

@@ -27,10 +27,15 @@ def pane_command(tab_index, pane):
     ]
     if pane["mode"] == "codex":
         session_id = pane["sessionId"]
-        if session_id != "last" and not re.fullmatch(r"[A-Za-z0-9._-]+", session_id):
-            raise ValueError("Codex panes require a valid exact session ID.")
-        command.append(f"TERMINAL_CODEX_SESSION_ID={session_id}")
-        resume_command = "codex resume --last" if session_id == "last" else f"codex resume {session_id}"
+        if session_id:
+            if session_id != "last" and not re.fullmatch(r"[A-Za-z0-9._-]+", session_id):
+                raise ValueError("Codex panes require a valid exact session ID.")
+            command.append(f"TERMINAL_CODEX_SESSION_ID={session_id}")
+        resume_command = (
+            "codex resume --last"
+            if session_id == "last"
+            else f"codex resume {session_id}" if session_id else "codex"
+        )
         resume = f"{resume_command}; exec zsh -l"
         command.extend(("zsh", "-lic", resume))
     elif pane["mode"] == "shell":

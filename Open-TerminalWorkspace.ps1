@@ -107,10 +107,7 @@ function Get-NormalizedTab {
         if ($paneMode -notin @("codex", "shell")) {
             throw "Project '$name' pane $paneIndex has an invalid mode."
         }
-        if ($paneMode -eq "codex" -and [string]::IsNullOrWhiteSpace($sessionId)) {
-            throw "Project '$name' pane $paneIndex requires a Codex session ID."
-        }
-        if ($paneMode -eq "codex" -and $sessionId -ne "last" -and $sessionId -notmatch '^[A-Za-z0-9._-]+$') {
+        if ($paneMode -eq "codex" -and -not [string]::IsNullOrWhiteSpace($sessionId) -and $sessionId -ne "last" -and $sessionId -notmatch '^[A-Za-z0-9._-]+$') {
             throw "Project '$name' pane $paneIndex has an invalid Codex session ID."
         }
     }
@@ -150,6 +147,8 @@ function Get-WslPaneArguments {
 
     $terminalCommand = if ([string]$Pane.mode -eq "shell") {
         $null
+    } elseif ([string]::IsNullOrWhiteSpace([string]$Pane.sessionId)) {
+        "exec codex"
     } elseif ([string]$Pane.sessionId -eq "last") {
         "exec codex resume --last"
     } else {
@@ -167,7 +166,9 @@ function Get-WslPaneArguments {
         "TERMINAL_WORKSPACE_PANE_INDEX=$PaneIndex"
     )
     if ([string]$Pane.mode -eq "codex") {
-        $arguments += "TERMINAL_CODEX_SESSION_ID=$([string]$Pane.sessionId)"
+        if (-not [string]::IsNullOrWhiteSpace([string]$Pane.sessionId)) {
+            $arguments += "TERMINAL_CODEX_SESSION_ID=$([string]$Pane.sessionId)"
+        }
         $arguments += @("zsh", "-lic", $terminalCommand)
     } else {
         $arguments += @("zsh", "-l")
