@@ -6,6 +6,11 @@ function New-TestKeyReader {
     { $queue.Dequeue() }.GetNewClosure()
 }
 . (Join-Path $PSScriptRoot '../Interactive-Selection.ps1')
+$longSessionName = '会话' * 100
+$wrappedSessionName = ConvertTo-WTworkDisplayLines -Text $longSessionName -MaximumWidth 40
+if ($wrappedSessionName.Count -lt 2 -or ($wrappedSessionName -join '') -ne $longSessionName) {
+    throw 'Interactive rows must wrap long session names without truncating them.'
+}
 $groupingItems = 1..4 | ForEach-Object { [pscustomobject]@{ Label = "Pane $_"; Groupable = $true } }
 $groupingKeys = @(
     'DownArrow', 'DownArrow', 'Spacebar', 'DownArrow', 'Spacebar', 'G',

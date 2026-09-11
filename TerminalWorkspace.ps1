@@ -82,7 +82,8 @@ switch ($action) {
             exit 0
         }
 
-        $items = foreach ($file in (Get-ChildItem -LiteralPath $workspacesDirectory -Filter "*.json" -File)) {
+        $items = @(
+            foreach ($file in (Get-ChildItem -LiteralPath $workspacesDirectory -Filter "*.json" -File | Sort-Object Name)) {
             $workspace = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
             [pscustomobject]@{
                 Name = $workspace.name
@@ -94,8 +95,91 @@ switch ($action) {
                 }
                 Path = $file.FullName
             }
+            }
+        )
+        if ($items.Count -eq 0) {
+            Write-Host "还没有保存的 workspace。"
+            exit 0
         }
-        $items | Format-Table Name,Mode,Tabs,Path -AutoSize
+        $workspaceMenuItems = @($items | ForEach-Object {
+            [pscustomobject]@{ Label = "$($_.Name)`t$($_.Mode)`t$($_.Tabs) tabs`t$($_.Path)"; Groupable = $false }
+        })
+        $workspaceSelection = Select-WTworkItems -Items $workspaceMenuItems -Title "选择 workspace" -KeyReader $SelectionKeyReader
+        if ($workspaceSelection.Indexes.Count -eq 0) {
+            Write-Host "没有选中 workspace：已取消操作。"
+            exit 0
+        }
+        $selectedItems = @($workspaceSelection.Indexes | ForEach-Object { $items[$_] })
+        $actions = @('打开', '删除')
+        if ($selectedItems.Count -eq 1) { $actions += '改名' }
+        $actionItems = @($actions | ForEach-Object { [pscustomobject]@{ Label = $_; Groupable = $false } })
+        $actionSelection = Select-WTworkItems -Items $actionItems -Title "对 [$($selectedItems.Name -join '], [')] 执行操作" -Single -KeyReader $SelectionKeyReader
+        if ($actionSelection.Indexes.Count -eq 0) {
+            Write-Host "没有选择操作：已取消。"
+            exit 0
+        }
+        $selectedAction = $actions[$actionSelection.Indexes[0]]
+        if ($selectedAction -eq '打开') {
+            $sharedWindowTarget = "WTwork-list-$PID"
+            if ($DryRun) {
+                $plans = @(
+                    foreach ($item in $selectedItems) {
+                        $workspace = Get-Content -LiteralPath $item.Path -Raw | ConvertFrom-Json
+                        $openWithTmux = [int]$workspace.schemaVersion -eq 2 -and [string]$workspace.mode -eq 'tmux'
+                        & (Join-Path $PSScriptRoot "Open-TerminalWorkspace.ps1") -Config $item.Path -Tmux:$openWithTmux -WindowTarget $sharedWindowTarget -DryRun | ConvertFrom-Json
+                    }
+                )
+                ConvertTo-Json -InputObject $plans -Depth 10
+            } else {
+                foreach ($item in $selectedItems) {
+                    $workspace = Get-Content -LiteralPath $item.Path -Raw | ConvertFrom-Json
+                    $openWithTmux = [int]$workspace.schemaVersion -eq 2 -and [string]$workspace.mode -eq 'tmux'
+                    & (Join-Path $PSScriptRoot "Open-TerminalWorkspace.ps1") -Config $item.Path -Tmux:$openWithTmux -WindowTarget $sharedWindowTarget
+                }
+            }
+            exit $LASTEXITCODE
+        }
+        if ($selectedAction -eq '删除') {
+            $confirmationItems = @(
+                [pscustomobject]@{ Label = "确认永久删除 [$($selectedItems.Name -join '], [')]"; Groupable = $false }
+                [pscustomobject]@{ Label = '取消'; Groupable = $false }
+            )
+            $confirmation = Select-WTworkItems -Items $confirmationItems -Title "删除后无法由 WTwork 恢复" -Single -KeyReader $SelectionKeyReader
+            if ($confirmation.Indexes.Count -eq 0 -or $confirmation.Indexes[0] -ne 0) {
+                Write-Host "已取消删除；workspace 文件未修改。"
+                exit 0
+            }
+            foreach ($item in $selectedItems) { Remove-Item -LiteralPath $item.Path }
+            Write-Host "已删除 workspace：[$($selectedItems.Name -join '], [')]。"
+            exit 0
+        }
+
+        $newName = Read-Host "输入新的 workspace name"
+        if ([string]::IsNullOrWhiteSpace($newName)) {
+            Write-Host "未输入新名称：已取消改名。"
+            exit 0
+        }
+        $workspace = Get-Content -LiteralPath $selectedItems[0].Path -Raw | ConvertFrom-Json
+        $invalidCharacters = [IO.Path]::GetInvalidFileNameChars()
+        $sanitizedName = -join @(
+            for ($index = 0; $index -lt $newName.Length; $index++) {
+                $character = $newName[$index]
+                if (
+                    $character -in $invalidCharacters -or
+                    ([string]$workspace.mode -eq 'tmux' -and $character -eq '.') -or
+                    ($index -eq $newName.Length - 1 -and $character -in @('.', ' '))
+                ) { '_' } else { $character }
+            }
+        )
+        $renamedPath = Join-Path $workspacesDirectory "$sanitizedName.json"
+        if ($renamedPath -ine $selectedItems[0].Path -and (Test-Path -LiteralPath $renamedPath)) {
+            throw "Workspace '$sanitizedName' already exists."
+        }
+        $workspace.name = $sanitizedName
+        $workspace | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $renamedPath -Encoding utf8
+        if ($renamedPath -ine $selectedItems[0].Path) { Remove-Item -LiteralPath $selectedItems[0].Path }
+        if ($newName -cne $sanitizedName) { Write-Host "Workspace name '$newName' was renamed as '$sanitizedName'." }
+        Write-Host "已将 workspace [$($selectedItems[0].Name)] 改名为 [$sanitizedName]。"
         exit 0
     }
     "open" {
@@ -105,7 +189,7 @@ switch ($action) {
                     throw "No saved tmux workspaces were found."
                 }
                 $tmuxWorkspaces = @(
-                    foreach ($file in (Get-ChildItem -LiteralPath $workspacesDirectory -Filter "*.json" -File)) {
+                    foreach ($file in (Get-ChildItem -LiteralPath $workspacesDirectory -Filter "*.json" -File | Sort-Object Name)) {
                         $workspace = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
                         if ([int]$workspace.schemaVersion -eq 2 -and [string]$workspace.mode -eq "tmux") {
                             [pscustomobject]@{

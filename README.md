@@ -85,6 +85,8 @@ WTwork save -n 地图项目
 
 所有多选菜单使用同一套 Codex CLI 风格按键：`↑/↓` 移动，`Space` 选择或取消，`Enter` 对全部已选项执行当前命令，`Esc` 取消。保存菜单默认全选，因此不改选择直接按 `Enter` 表示保存全部。
 
+保存列表按 `TmuxSession → WindowIndex → Title → Panes → SessionName` 排列；`Title` 后预留两个 tab stop，`Panes` 是独立列，`SessionName` 始终位于最后。长 SessionName 不截断，会按终端宽度完整换行显示。
+
 已标记 Pane 会自动聚合。第一次登记手动创建的 Pane 时，勾选要合并的单 Pane 后按 `G`，菜单会用“组1、组2……”标记；按 `U` 可解除已选 Pane 的分组。同组 Pane 保存为一个等分 Tab。恢复后的标记使后续保存无需再次分组。
 
 ### tmux sessions
@@ -117,6 +119,10 @@ WTwork open -tmux
 新版 JSON 根据根级 `mode` 自动选择恢复器，`-n` 已足够。名称不存在时会显示最多三个相似名称。`open -tmux` 会列出所有 v2 `mode=tmux` workspace，初始不选中任何项；用 `Space` 多选后按 `Enter`，它们会按勾选顺序打开在同一个新 Windows Terminal window 中，每个 workspace 一个 Tab。未选择时按 `Enter` 或按 `Esc` 都会取消。已有同名 live tmux session 时直接附着，否则重建。
 
 恢复时 Codex Pane 使用精确 Session UUID 执行 `codex resume <UUID>`，shell Pane 启动登录 zsh。
+
+### 管理 workspace
+
+`WTwork list` 会进入同样的多选界面。选择一个或多个 workspace 后，可继续选择“打开”或“删除”；只选择一个时还可“改名”。多选打开会按勾选顺序进入同一个新 Windows Terminal window。删除操作有独立确认菜单，未选择确认项或按 `Esc` 不会删除。改名会同时更新 JSON 文件名和内部 workspace 名称；目标名称已存在时直接报错，不覆盖。
 
 ## workspace JSON v2
 

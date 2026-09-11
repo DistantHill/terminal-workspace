@@ -64,6 +64,39 @@ try {
         throw 'A missing workspace must report similar saved names.'
     }
 
+    $listOpenKeys = New-TestKeyReader @('DownArrow', 'Spacebar', 'DownArrow', 'Spacebar', 'Enter', 'Spacebar', 'Enter')
+    $listOpenPlans = @(& $entry list -DryRun -SelectionKeyReader $listOpenKeys | ConvertFrom-Json)
+    $listOpenNames = @(
+        foreach ($plan in $listOpenPlans) {
+            $pythonIndex = [Array]::IndexOf($plan.arguments, 'python3')
+            ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($plan.arguments[$pythonIndex + 2])) | ConvertFrom-Json).workspaceName
+        }
+    )
+    if (
+        $listOpenNames[0] -ne 'tmux-v2-second' -or
+        $listOpenNames[1] -ne 'tmux-v2-test' -or
+        $listOpenPlans[0].arguments[1] -ne $listOpenPlans[1].arguments[1]
+    ) {
+        throw 'List must open multiple selected workspaces in selection order within one Terminal window.'
+    }
+
+    $deleteKeys = New-TestKeyReader @('Spacebar', 'Enter', 'DownArrow', 'Spacebar', 'Enter', 'Spacebar', 'Enter')
+    & $entry list -SelectionKeyReader $deleteKeys | Out-Null
+    if (Test-Path -LiteralPath (Join-Path $workspaceDirectory 'TempTab.json')) {
+        throw 'List delete must remove every confirmed selected workspace.'
+    }
+
+    function Read-Host { 'tmux-renamed' }
+    $renameKeys = New-TestKeyReader @('Spacebar', 'Enter', 'DownArrow', 'DownArrow', 'Spacebar', 'Enter')
+    & $entry list -SelectionKeyReader $renameKeys | Out-Null
+    $renamedPath = Join-Path $workspaceDirectory 'tmux-renamed.json'
+    if (
+        -not (Test-Path -LiteralPath $renamedPath) -or
+        (Get-Content -LiteralPath $renamedPath -Raw | ConvertFrom-Json).name -ne 'tmux-renamed'
+    ) {
+        throw 'List rename must update both the file name and internal workspace name.'
+    }
+
     $global:cliSaveRows = @(
         "native-cli`t/cli/project`t0`t`t`t`t`t`t`t`t`t`t`t`t`t`t"
     )
