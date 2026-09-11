@@ -6,6 +6,12 @@ function New-TestKeyReader {
     { $queue.Dequeue() }.GetNewClosure()
 }
 . (Join-Path $PSScriptRoot '../Interactive-Selection.ps1')
+if (
+    (Format-WTworkColumn 'Multimodal-GEO-roadnet' 16) -ne 'Multimodal-GE...' -or
+    (Format-WTworkColumn '地图项目' 16) -ne "地图项目        "
+) {
+    throw 'Fixed-width workspace columns must truncate or pad without shifting later columns.'
+}
 $longSessionName = '会话' * 100
 $wrappedSessionName = ConvertTo-WTworkDisplayLines -Text $longSessionName -MaximumWidth 40
 if ($wrappedSessionName.Count -lt 2 -or ($wrappedSessionName -join '') -ne $longSessionName) {

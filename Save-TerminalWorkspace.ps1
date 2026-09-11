@@ -260,9 +260,9 @@ if ($All) {
     $menuItems = @(
         foreach ($session in $sessions) {
             $label = if ($Tmux) {
-                "$($session.TmuxSession)`t`twindow $($session.WindowIndex)`t$($session.Title)`t`t$($session.Panes) panes`t$($session.SessionName)"
+                "$(Format-WTworkColumn $session.TmuxSession 16)$(Format-WTworkColumn "window $($session.WindowIndex)" 16)$(Format-WTworkColumn $session.Title 16)$(Format-WTworkColumn "$($session.Panes) panes" 8)$($session.SessionName)"
             } else {
-                "$($session.Title)`t`t$($session.Panes) panes`t$($session.SessionName)"
+                "$(Format-WTworkColumn $session.Title 16)$(Format-WTworkColumn "$($session.Panes) panes" 8)$($session.SessionName)"
             }
             [pscustomobject]@{ Label = $label; Groupable = -not $Tmux -and $session.Panes -eq 1 }
         }

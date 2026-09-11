@@ -28,6 +28,35 @@ function ConvertTo-WTworkDisplayLines {
     $lines.ToArray()
 }
 
+function Format-WTworkColumn {
+    param([string]$Text, [int]$Width)
+
+    $elements = [Collections.Generic.List[string]]::new()
+    $textWidth = 0
+    $enumerator = [Globalization.StringInfo]::GetTextElementEnumerator($Text)
+    while ($enumerator.MoveNext()) {
+        $element = $enumerator.GetTextElement()
+        $elements.Add($element)
+        $textWidth += if ([int][char]$element[0] -le 0x7f) { 1 } else { 2 }
+    }
+
+    $result = [Text.StringBuilder]::new()
+    $displayWidth = 0
+    $contentWidth = if ($textWidth -gt $Width) { $Width - 3 } else { $Width }
+    foreach ($element in $elements) {
+        $elementWidth = if ([int][char]$element[0] -le 0x7f) { 1 } else { 2 }
+        if ($displayWidth + $elementWidth -gt $contentWidth) { break }
+        [void]$result.Append($element)
+        $displayWidth += $elementWidth
+    }
+    if ($textWidth -gt $Width) {
+        [void]$result.Append('...')
+        $displayWidth += 3
+    }
+    [void]$result.Append(' ' * ($Width - $displayWidth))
+    $result.ToString()
+}
+
 function Select-WTworkItems {
     param(
         [Parameter(Mandatory)]
