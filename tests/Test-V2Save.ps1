@@ -32,6 +32,11 @@ if (
 ) {
     throw 'Interactive selection must preserve multiple independent Pane groups.'
 }
+$viewItems = @([pscustomobject]@{ Label = 'workspace'; Groupable = $false; Details = @('layout') })
+$viewResult = Select-WTworkItems -Items $viewItems -Title 'test' -AllowLayoutToggle -AllowDensityToggle -KeyReader (New-TestKeyReader @('Ctrl+T', 'Ctrl+E', 'Enter'))
+if (-not $viewResult.Expanded[0] -or $viewResult.Dense) {
+    throw 'Interactive selection must toggle layout details and display density.'
+}
 $global:v2SaveRows = @(
     "tmux-tab`t/home/reed/personal`t0`t`t`t`t`t`t`t`t`t`t`t`t`t"
     "shell-tab`t/home/reed/workspace`t0`t`t`t`t`t`t`t`t`t`t`t`t`t`t"

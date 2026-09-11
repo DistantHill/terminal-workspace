@@ -94,6 +94,16 @@ switch ($action) {
                     @($workspace.projects).Count
                 }
                 Path = $file.FullName
+                Details = if ([int]$workspace.schemaVersion -eq 2 -and [string]$workspace.mode -eq 'tmux') {
+                    @($workspace.tmux.windows | ForEach-Object { "window $($_.index): $($_.name) | $(@($_.panes).Count) panes | layout: $($_.layout)" })
+                } elseif ([int]$workspace.schemaVersion -eq 2) {
+                    @($workspace.terminal.tabs | ForEach-Object { "tab $($_.index): $($_.name) | $(@($_.panes).Count) panes | layout: $($_.layout | ConvertTo-Json -Compress -Depth 5)" })
+                } else {
+                    @(for ($projectIndex = 0; $projectIndex -lt @($workspace.projects).Count; $projectIndex++) {
+                        $project = @($workspace.projects)[$projectIndex]
+                        "project ${projectIndex}: $($project.name) | mode: $($project.mode)"
+                    })
+                }
             }
             }
         )
@@ -102,23 +112,32 @@ switch ($action) {
             exit 0
         }
         $workspaceMenuItems = @($items | ForEach-Object {
-            [pscustomobject]@{ Label = "$(Format-WTworkColumn $_.Name 16)$(Format-WTworkColumn $_.Mode 8)$(Format-WTworkColumn "$($_.Tabs) tabs" 8)$($_.Path)"; Groupable = $false }
+            [pscustomobject]@{ Label = "$(Format-WTworkColumn $_.Name 16)$(Format-WTworkColumn $_.Mode 8)$(Format-WTworkColumn "$($_.Tabs) tabs" 8)$($_.Path)"; Groupable = $false; Details = $_.Details }
         })
-        $workspaceSelection = Select-WTworkItems -Items $workspaceMenuItems -Title "选择 workspace" -KeyReader $SelectionKeyReader
+        $workspaceSelection = Select-WTworkItems -Items $workspaceMenuItems -Title "选择 workspace" -AllowLayoutToggle -AllowDensityToggle -ActionKeys @('Ctrl+D', 'Ctrl+R') -ActionHelp 'Ctrl+D 删除；Ctrl+R 改名（仅单选）' -KeyReader $SelectionKeyReader
         if ($workspaceSelection.Indexes.Count -eq 0) {
             Write-Host "没有选中 workspace：已取消操作。"
             exit 0
         }
         $selectedItems = @($workspaceSelection.Indexes | ForEach-Object { $items[$_] })
-        $actions = @('打开', '删除')
-        if ($selectedItems.Count -eq 1) { $actions += '改名' }
-        $actionItems = @($actions | ForEach-Object { [pscustomobject]@{ Label = $_; Groupable = $false } })
-        $actionSelection = Select-WTworkItems -Items $actionItems -Title "对 [$($selectedItems.Name -join '], [')] 执行操作" -Single -KeyReader $SelectionKeyReader
-        if ($actionSelection.Indexes.Count -eq 0) {
-            Write-Host "没有选择操作：已取消。"
-            exit 0
+        if ($workspaceSelection.Action -eq 'Ctrl+D') {
+            $selectedAction = '删除'
+        } elseif ($workspaceSelection.Action -eq 'Ctrl+R') {
+            if ($selectedItems.Count -ne 1) {
+                throw "改名只能选择一个 workspace；当前已选择 $($selectedItems.Count) 个。"
+            }
+            $selectedAction = '改名'
+        } else {
+            $actions = @('打开', '删除')
+            if ($selectedItems.Count -eq 1) { $actions += '改名' }
+            $actionItems = @($actions | ForEach-Object { [pscustomobject]@{ Label = $_; Groupable = $false } })
+            $actionSelection = Select-WTworkItems -Items $actionItems -Title "对 [$($selectedItems.Name -join '], [')] 执行操作" -Single -KeyReader $SelectionKeyReader
+            if ($actionSelection.Indexes.Count -eq 0) {
+                Write-Host "没有选择操作：已取消。"
+                exit 0
+            }
+            $selectedAction = $actions[$actionSelection.Indexes[0]]
         }
-        $selectedAction = $actions[$actionSelection.Indexes[0]]
         if ($selectedAction -eq '打开') {
             $sharedWindowTarget = "WTwork-list-$PID"
             if ($DryRun) {

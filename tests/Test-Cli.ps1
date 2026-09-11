@@ -80,14 +80,14 @@ try {
         throw 'List must open multiple selected workspaces in selection order within one Terminal window.'
     }
 
-    $deleteKeys = New-TestKeyReader @('Spacebar', 'Enter', 'DownArrow', 'Spacebar', 'Enter', 'Spacebar', 'Enter')
+    $deleteKeys = New-TestKeyReader @('Spacebar', 'Ctrl+D', 'Spacebar', 'Enter')
     & $entry list -SelectionKeyReader $deleteKeys | Out-Null
     if (Test-Path -LiteralPath (Join-Path $workspaceDirectory 'TempTab.json')) {
         throw 'List delete must remove every confirmed selected workspace.'
     }
 
     function Read-Host { 'tmux-renamed' }
-    $renameKeys = New-TestKeyReader @('Spacebar', 'Enter', 'DownArrow', 'DownArrow', 'Spacebar', 'Enter')
+    $renameKeys = New-TestKeyReader @('Spacebar', 'Ctrl+R')
     & $entry list -SelectionKeyReader $renameKeys | Out-Null
     $renamedPath = Join-Path $workspaceDirectory 'tmux-renamed.json'
     if (

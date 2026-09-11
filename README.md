@@ -122,7 +122,7 @@ WTwork open -tmux
 
 ### 管理 workspace
 
-`WTwork list` 会进入同样的多选界面。选择一个或多个 workspace 后，可继续选择“打开”或“删除”；只选择一个时还可“改名”。多选打开会按勾选顺序进入同一个新 Windows Terminal window。删除操作有独立确认菜单，未选择确认项或按 `Esc` 不会删除。改名会同时更新 JSON 文件名和内部 workspace 名称；目标名称已存在时直接报错，不覆盖。
+`WTwork list` 会进入同样的多选界面。选择一个或多个 workspace 后，可继续选择“打开”或“删除”；只选择一个时还可“改名”。也可直接按 `Ctrl+D` 删除所有已选项，或按 `Ctrl+R` 改名唯一的已选项。`Ctrl+T` 展开/收起当前 workspace 的 window/tab、Pane 数和 layout；`Ctrl+E` 切换 dense 与宽松行距。多选打开会按勾选顺序进入同一个新 Windows Terminal window。删除操作有独立确认菜单，未选择确认项或按 `Esc` 不会删除。改名会同时更新 JSON 文件名和内部 workspace 名称；目标名称已存在时直接报错，不覆盖。
 
 ## workspace JSON v2
 

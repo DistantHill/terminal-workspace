@@ -66,6 +66,10 @@ function Select-WTworkItems {
         [switch]$DefaultAll,
         [switch]$Single,
         [switch]$AllowGrouping,
+        [switch]$AllowLayoutToggle,
+        [switch]$AllowDensityToggle,
+        [string[]]$ActionKeys,
+        [string]$ActionHelp,
         [scriptblock]$KeyReader
     )
 
@@ -78,6 +82,8 @@ function Select-WTworkItems {
         }
     }
     $groups = [int[]]::new($Items.Count)
+    $expanded = [bool[]]::new($Items.Count)
+    $dense = $true
     $nextGroup = 1
     $cursor = 0
     $escape = [char]27
@@ -85,7 +91,7 @@ function Select-WTworkItems {
     $render = -not [bool]$KeyReader
     $maximumWidth = if ($render) { [math]::Max(20, [Console]::WindowWidth - 1) } else { 120 }
     if (-not $KeyReader) {
-        $KeyReader = { [Console]::ReadKey($true).Key }
+        $KeyReader = { [Console]::ReadKey($true) }
     }
 
     try {
@@ -105,16 +111,45 @@ function Select-WTworkItems {
                     foreach ($line in (ConvertTo-WTworkDisplayLines -Text "$pointer $check $($Items[$index].Label)$group" -MaximumWidth $maximumWidth -ContinuationPrefix '      ')) {
                         $renderLines.Add($line)
                     }
+                    if ($expanded[$index]) {
+                        foreach ($detail in @($Items[$index].Details)) {
+                            foreach ($line in (ConvertTo-WTworkDisplayLines -Text "      $detail" -MaximumWidth $maximumWidth -ContinuationPrefix '      ')) {
+                                $renderLines.Add($line)
+                            }
+                        }
+                    }
+                    if (-not $dense) { $renderLines.Add('') }
                 }
                 $groupHelp = if ($AllowGrouping) { '；G 将未分组的已选 Pane 编组；U 解除已选 Pane 分组' } else { '' }
-                foreach ($line in (ConvertTo-WTworkDisplayLines -Text "↑/↓ 移动；Space 选择/取消；Enter 执行；Esc 取消$groupHelp" -MaximumWidth $maximumWidth)) { $renderLines.Add($line) }
+                $shortcutHelp = if ($ActionHelp) { "；$ActionHelp" } else { '' }
+                $layoutHelp = if ($AllowLayoutToggle) { '；Ctrl+T 展开/收起 layout' } else { '' }
+                $densityHelp = if ($AllowDensityToggle) { '；Ctrl+E 切换 dense/宽松' } else { '' }
+                foreach ($line in (ConvertTo-WTworkDisplayLines -Text "↑/↓ 移动；Space 选择/取消；Enter 执行；Esc 取消$groupHelp$shortcutHelp$layoutHelp$densityHelp" -MaximumWidth $maximumWidth)) { $renderLines.Add($line) }
                 $renderLines.Add("已选择 $($selectionOrder.Count) 项")
                 foreach ($line in $renderLines) { Write-Host "$escape[2K$line" }
                 $previousLineCount = $renderLines.Count
             }
 
-            $key = & $KeyReader
-            switch ([string]$key) {
+            $keyInput = & $KeyReader
+            if ($keyInput -is [ConsoleKeyInfo]) {
+                $key = [string]$keyInput.Key
+                $actionKey = if ($keyInput.Modifiers -band [ConsoleModifiers]::Control) { "Ctrl+$key" } else { $key }
+            } else {
+                $key = [string]$keyInput
+                $actionKey = $key
+            }
+            if ($actionKey -eq 'Ctrl+T' -and $AllowLayoutToggle) {
+                $expanded[$cursor] = -not $expanded[$cursor]
+                continue
+            }
+            if ($actionKey -eq 'Ctrl+E' -and $AllowDensityToggle) {
+                $dense = -not $dense
+                continue
+            }
+            if ($ActionKeys -contains $actionKey) {
+                return [pscustomobject]@{ Indexes = @($selectionOrder); Groups = $groups; Action = $actionKey; Dense = $dense; Expanded = $expanded }
+            }
+            switch ($key) {
                 'UpArrow' { $cursor = ($cursor - 1 + $Items.Count) % $Items.Count }
                 'DownArrow' { $cursor = ($cursor + 1) % $Items.Count }
                 'Spacebar' {
@@ -144,10 +179,10 @@ function Select-WTworkItems {
                     }
                 }
                 'Enter' {
-                    return [pscustomobject]@{ Indexes = @($selectionOrder); Groups = $groups }
+                    return [pscustomobject]@{ Indexes = @($selectionOrder); Groups = $groups; Action = ''; Dense = $dense; Expanded = $expanded }
                 }
                 'Escape' {
-                    return [pscustomobject]@{ Indexes = @(); Groups = $groups }
+                    return [pscustomobject]@{ Indexes = @(); Groups = $groups; Action = ''; Dense = $dense; Expanded = $expanded }
                 }
             }
         }
