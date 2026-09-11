@@ -133,6 +133,28 @@ if (
     throw "V2 terminal mode must preserve its tab panes and session types."
 }
 
+$global:mockTmuxSessionExists = $true
+function wt.exe { $global:LASTEXITCODE = 0 }
+function wsl.exe {
+    $global:LASTEXITCODE = if ($global:mockTmuxSessionExists) { 0 } else { 1 }
+}
+try {
+    $attachedOutput = (& $launcher -Config $v2TmuxConfig 6>&1 | Out-String)
+    $global:mockTmuxSessionExists = $false
+    $rebuiltOutput = (& $launcher -Config $v2TmuxConfig 6>&1 | Out-String)
+    $terminalResultOutput = (& $launcher -Config $v2TerminalConfig 6>&1 | Out-String)
+    if (
+        $attachedOutput -notmatch '已走附着分支' -or
+        $rebuiltOutput -notmatch '已走重建并附着分支' -or
+        $terminalResultOutput -notmatch '提交创建 1 个 Tab、3 个 Pane'
+    ) {
+        throw 'Open must report the actual tmux or Windows Terminal result branch.'
+    }
+} finally {
+    Remove-Item Function:\wt.exe
+    Remove-Item Function:\wsl.exe
+}
+
 $tmuxThreeWindowPlan = & $launcher -Config $tmuxThreeWindowConfig -Tmux -DryRun | ConvertFrom-Json
 $tmuxThreeWindowPythonIndex = [Array]::IndexOf($tmuxThreeWindowPlan.arguments, "python3")
 $tmuxThreeWindowPayload = [Text.Encoding]::UTF8.GetString(

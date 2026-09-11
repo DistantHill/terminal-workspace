@@ -95,7 +95,7 @@ if ($WtPath) {
     if (-not $wtCommand) {
         throw "wt.exe was not found on PATH. Install Windows Terminal or pass -WtPath."
     }
-    $wtExecutable = $wtCommand.Path
+    $wtExecutable = if ($wtCommand.CommandType -eq 'Function') { $wtCommand.Name } else { $wtCommand.Path }
 }
 
 if (-not $DryRun -and -not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
@@ -311,7 +311,29 @@ if ($DryRun) {
     exit 0
 }
 
+$tmuxSessionExisted = $false
+if ($useTmux) {
+    & wsl.exe -d $distribution -- tmux has-session -t $workspaceName 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $tmuxSessionExisted = $true
+    } elseif ($LASTEXITCODE -ne 1) {
+        throw "Could not determine whether tmux session '$workspaceName' exists."
+    }
+}
+
 & $wtExecutable @wtArguments
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
+}
+
+Write-Host ""
+if ($useTmux) {
+    if ($tmuxSessionExisted) {
+        Write-Host "操作结果：检测到同名 tmux session [$workspaceName]，已走附着分支。"
+    } else {
+        Write-Host "操作结果：未检测到同名 tmux session [$workspaceName]，已走重建并附着分支。"
+    }
+} else {
+    $paneCount = @($tabs | ForEach-Object { @($_.panes).Count } | Measure-Object -Sum).Sum
+    Write-Host "操作结果：已走 Windows Terminal 重建分支，提交创建 $($tabs.Count) 个 Tab、$paneCount 个 Pane。"
 }

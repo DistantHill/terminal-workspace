@@ -118,6 +118,8 @@ WTwork open -tmux
 
 新版 JSON 根据根级 `mode` 自动选择恢复器，`-n` 已足够。名称不存在时会显示最多三个相似名称。`open -tmux` 会列出所有 v2 `mode=tmux` workspace，初始不选中任何项；用 `Space` 多选后按 `Enter`，它们会按勾选顺序打开在同一个新 Windows Terminal window 中，每个 workspace 一个 Tab。未选择时按 `Enter` 或按 `Esc` 都会取消。已有同名 live tmux session 时直接附着，否则重建。
 
+命令执行后会另起一行报告实际逻辑分支：tmux 明确显示“检测到同名 session，附着”或“未检测到同名 session，重建并附着”；原生模式显示提交重建的 Tab/Pane 数。保存也会逐个 workspace 显示本次走“新建”还是“覆盖”分支。
+
 恢复时 Codex Pane 使用精确 Session UUID 执行 `codex resume <UUID>`，shell Pane 启动登录 zsh。
 
 ### 管理 workspace

@@ -179,9 +179,14 @@ try {
     $savedWorkspace = Get-Content -LiteralPath $savedPath -Raw | ConvertFrom-Json
     if (
         $savedWorkspace.name -ne 'road_test_foo' -or
-        $savedOutput -notmatch "Workspace name 'road:test\.foo' was saved as 'road_test_foo'\."
+        $savedOutput -notmatch "Workspace name 'road:test\.foo' was saved as 'road_test_foo'\." -or
+        $savedOutput -notmatch '操作结果：workspace \[road_test_foo\] 已走新建分支'
     ) {
         throw 'Expected invalid workspace characters to be replaced and reported.'
+    }
+    $overwrittenOutput = (& $save -All -Tmux -Force 6>&1 | Out-String)
+    if ($overwrittenOutput -notmatch '操作结果：workspace \[road_test_foo\] 已走覆盖分支') {
+        throw 'Saving an existing workspace must report the overwrite branch.'
     }
 } finally {
     $env:WTWORK_DATA_HOME = $previousDataRoot

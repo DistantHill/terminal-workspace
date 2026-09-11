@@ -430,7 +430,8 @@ if ($DryRun) {
 New-Item -ItemType Directory -Path $workspacesDirectory -Force | Out-Null
 foreach ($workspace in $workspaces) {
     $workspacePath = Join-Path $workspacesDirectory "$($workspace.name).json"
-    if ((Test-Path -LiteralPath $workspacePath) -and -not $Force -and $explicitName) {
+    $workspaceExisted = Test-Path -LiteralPath $workspacePath
+    if ($workspaceExisted -and -not $Force -and $explicitName) {
         $confirmation = Read-Host "已有 workspace name [$($workspace.name)]。是否覆盖？(y/N，直接回车=取消)"
         if ($confirmation -notin @('y', 'Y', 'yes', 'YES')) {
             throw "已取消保存；现有 workspace [$($workspace.name)] 未修改。"
@@ -442,5 +443,7 @@ foreach ($workspace in $workspaces) {
     if ($nameChange) {
         Write-Host "Workspace name '$($nameChange.Original)' was saved as '$($nameChange.Sanitized)'."
     }
-    Write-Host "Saved workspace '$($workspace.name)' to $workspacePath"
+    $saveBranch = if ($workspaceExisted) { '覆盖' } else { '新建' }
+    Write-Host ""
+    Write-Host "操作结果：workspace [$($workspace.name)] 已走${saveBranch}分支，写入 $workspacePath"
 }
