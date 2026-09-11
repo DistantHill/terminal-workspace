@@ -102,7 +102,7 @@ switch ($action) {
             exit 0
         }
         $workspaceMenuItems = @($items | ForEach-Object {
-            [pscustomobject]@{ Label = "$($_.Name)`t$($_.Mode)`t$($_.Tabs) tabs`t$($_.Path)"; Groupable = $false }
+            [pscustomobject]@{ Label = "$($_.Name)`t`t$($_.Mode)`t$($_.Tabs) tabs`t$($_.Path)"; Groupable = $false }
         })
         $workspaceSelection = Select-WTworkItems -Items $workspaceMenuItems -Title "选择 workspace" -KeyReader $SelectionKeyReader
         if ($workspaceSelection.Indexes.Count -eq 0) {
@@ -209,7 +209,7 @@ switch ($action) {
                 }
                 Write-Host "打开方式：可勾选多个 workspace；将按勾选顺序在同一个新 Windows Terminal window 中打开，每个 workspace 一个 Tab。"
                 $menuItems = @($tmuxWorkspaces | ForEach-Object {
-                    [pscustomobject]@{ Label = "$($_.Name)  ($($_.Windows) windows)"; Groupable = $false }
+                    [pscustomobject]@{ Label = "$($_.Name)`t`t$($_.Windows) windows"; Groupable = $false }
                 })
                 $selectionResult = Select-WTworkItems -Items $menuItems -Title "选择本次要打开的 tmux workspace" -KeyReader $SelectionKeyReader
                 if ($selectionResult.Indexes.Count -eq 0) {

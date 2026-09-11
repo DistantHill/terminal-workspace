@@ -260,7 +260,7 @@ if ($All) {
     $menuItems = @(
         foreach ($session in $sessions) {
             $label = if ($Tmux) {
-                "$($session.TmuxSession)`twindow $($session.WindowIndex)`t$($session.Title)`t`t$($session.Panes) panes`t$($session.SessionName)"
+                "$($session.TmuxSession)`t`twindow $($session.WindowIndex)`t$($session.Title)`t`t$($session.Panes) panes`t$($session.SessionName)"
             } else {
                 "$($session.Title)`t`t$($session.Panes) panes`t$($session.SessionName)"
             }

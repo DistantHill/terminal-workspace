@@ -85,7 +85,7 @@ WTwork save -n 地图项目
 
 所有多选菜单使用同一套 Codex CLI 风格按键：`↑/↓` 移动，`Space` 选择或取消，`Enter` 对全部已选项执行当前命令，`Esc` 取消。保存菜单默认全选，因此不改选择直接按 `Enter` 表示保存全部。
 
-保存列表按 `TmuxSession → WindowIndex → Title → Panes → SessionName` 排列；`Title` 后预留两个 tab stop，`Panes` 是独立列，`SessionName` 始终位于最后。长 SessionName 不截断，会按终端宽度完整换行显示。
+保存列表按 `TmuxSession → WindowIndex → Title → Panes → SessionName` 排列；workspace name 和 `Title` 后各预留两个 tab stop，`Panes` 是独立列，`SessionName` 始终位于最后。长 SessionName 不截断，会按终端宽度完整换行显示。
 
 已标记 Pane 会自动聚合。第一次登记手动创建的 Pane 时，勾选要合并的单 Pane 后按 `G`，菜单会用“组1、组2……”标记；按 `U` 可解除已选 Pane 的分组。同组 Pane 保存为一个等分 Tab。恢复后的标记使后续保存无需再次分组。
 
