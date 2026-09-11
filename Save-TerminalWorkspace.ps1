@@ -52,14 +52,13 @@ if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
 function Get-Pane {
     param([object[]]$Processes, [int]$Index)
 
-    $codexProcesses = @($Processes | Where-Object IsCodex)
-    $selectedProcess = $codexProcesses | Where-Object SessionId | Select-Object -First 1
+    $codexProcesses = @($Processes | Where-Object { $_.IsCodex -and $_.SessionId })
+    $selectedProcess = $codexProcesses | Select-Object -First 1
     if (-not $selectedProcess) {
-        $selectedProcess = if ($codexProcesses.Count -gt 0) {
-            $codexProcesses[0]
-        } else {
-            $Processes[0]
-        }
+        $selectedProcess = $Processes | Where-Object { -not $_.IsCodex } | Select-Object -First 1
+    }
+    if (-not $selectedProcess) {
+        $selectedProcess = $Processes[0]
     }
 
     [pscustomobject]@{
@@ -300,17 +299,6 @@ if ($All) {
         }
     )
     Write-Host "已选择 $($selectionResult.Indexes.Count) 项，得到 $($selectedSessions.Count) 个保存分组；顺序遵循勾选顺序。"
-}
-
-$unresolved = @(
-    foreach ($session in $selectedSessions) {
-        foreach ($pane in ($session.PanesData | Where-Object { $_.Mode -eq "codex" -and [string]::IsNullOrWhiteSpace($_.SessionId) })) {
-            "Tab $($session.Index) Pane $($pane.Index)"
-        }
-    }
-)
-if ($unresolved.Count -gt 0) {
-    throw "Codex $($unresolved -join ', ') has no active resumable Session. Open a conversation there, then save again."
 }
 
 if ($Tmux -and $explicitName -and -not $DryRun) {

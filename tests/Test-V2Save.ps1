@@ -143,6 +143,15 @@ if (
 }
 
 $global:v2SaveRows = @(
+    "shell-leaf`t/home/reed`t1`t`t`t`t`t`tleaf-tmux`t@8`t0`tzsh`tlayout-leaf`t%18`t0`t1"
+)
+$shellLeafOutput = (& $save -Name shell-leaf -All -DryRun -Tmux | Out-String)
+$shellLeafWorkspace = $shellLeafOutput.Substring($shellLeafOutput.IndexOf('{')) | ConvertFrom-Json
+if ($shellLeafWorkspace.tmux.windows[0].panes[0].session_type -ne 'shell') {
+    throw 'A tmux Pane without a resumable Codex session must be saved as shell.'
+}
+
+$global:v2SaveRows = @(
     "invalid-tab`t/project/invalid`t1`t`t`t`tthread-invalid`tInvalid Name`troad:test.foo`t@9`t0`twork`tlayout-invalid`t%19`t0`t1"
 )
 $testDataRoot = Join-Path ([IO.Path]::GetTempPath()) "wtwork-v2-$([guid]::NewGuid())"
