@@ -122,8 +122,10 @@ switch ($action) {
                     $tmuxWorkspaces[$index].Index = $index + 1
                 }
                 $tmuxWorkspaces | Format-Table Index,Name,Windows -AutoSize | Out-Host
-                $selection = Read-Host "选择 tmux workspace 编号（逗号分隔；直接回车取消）"
+                Write-Host "打开方式：可输入多个编号；将按输入顺序在同一个新 Windows Terminal window 中打开，每个 workspace 一个 Tab。"
+                $selection = Read-Host "输入 tmux workspace 编号（逗号分隔；直接回车取消本次打开）"
                 if ([string]::IsNullOrWhiteSpace($selection)) {
+                    Write-Host "未输入编号：已取消打开，没有启动任何 workspace。"
                     exit 0
                 }
                 $tokens = @($selection -split ',' | ForEach-Object { $_.Trim() })
@@ -135,6 +137,7 @@ switch ($action) {
                     throw "One or more selected workspace numbers are invalid."
                 }
                 $selectedWorkspaces = @($indexes | ForEach-Object { $tmuxWorkspaces[$_ - 1] })
+                Write-Host "将打开：[$($selectedWorkspaces.Name -join '], [')]。"
                 $sharedWindowTarget = "WTwork-open-$PID"
                 if ($DryRun) {
                     $plans = @(
@@ -151,6 +154,7 @@ switch ($action) {
                 exit $LASTEXITCODE
             }
             $Name = "TempTab"
+            Write-Host "未指定 workspace：正在打开默认 workspace [TempTab]。"
         }
 
         if (
@@ -176,6 +180,8 @@ switch ($action) {
 
         $workspace = Get-Content -LiteralPath $workspacePath -Raw | ConvertFrom-Json
         $openWithTmux = if ([int]$workspace.schemaVersion -eq 2) { [string]$workspace.mode -eq "tmux" } else { [bool]$Tmux }
+        $rendererDescription = if ($openWithTmux) { "tmux；同名 session 已存在则附着，否则重建" } else { "Windows Terminal；每个已保存分组重建为新 Tab" }
+        Write-Host "正在打开 workspace [$Name]，模式：$rendererDescription。"
         & (Join-Path $PSScriptRoot "Open-TerminalWorkspace.ps1") -Config $workspacePath -Tmux:$openWithTmux -DryRun:$DryRun
         exit $LASTEXITCODE
     }

@@ -51,8 +51,10 @@ if (
     throw 'Expected the selection table to follow tmux window indexes.'
 }
 
-$automaticOutput = (& $save -All -DryRun -Tmux | Out-String)
-$automaticWorkspaces = @($automaticOutput.Substring($automaticOutput.IndexOf('[')) | ConvertFrom-Json)
+function Read-Host { '' }
+$automaticOutput = (& $save -DryRun -Tmux 6>&1 | Out-String)
+$automaticJsonStart = $automaticOutput.IndexOf("[`r`n")
+$automaticWorkspaces = @($automaticOutput.Substring($automaticJsonStart) | ConvertFrom-Json)
 if (
     $automaticWorkspaces.Count -ne 2 -or
     $automaticWorkspaces[0].name -ne 'alpha-tmux' -or
@@ -60,13 +62,15 @@ if (
     $automaticWorkspaces[1].name -ne 'my-tmux' -or
     $automaticWorkspaces[1].tmux.windows.Count -ne 2 -or
     $automaticWorkspaces[1].tmux.windows[0].name -ne 'second' -or
-    $automaticWorkspaces[1].tmux.windows[1].name -ne 'config'
+    $automaticWorkspaces[1].tmux.windows[1].name -ne 'config' -or
+    $automaticOutput -notmatch '按 TmuxSession 分别写入' -or
+    $automaticOutput -notmatch '未输入编号：将保存全部 window，并按 TmuxSession 聚类为独立 workspace'
 ) {
     throw 'Expected unnamed tmux saves to split by tmux session and preserve window order.'
 }
 
 function Read-Host { '1+2+3' }
-$terminalOutput = (& $save -Name terminal-test -DryRun | Out-String)
+$terminalOutput = (& $save -Name terminal-test -DryRun 6>&1 | Out-String)
 $terminalWorkspace = $terminalOutput.Substring($terminalOutput.IndexOf('{')) | ConvertFrom-Json
 $terminalTab = $terminalWorkspace.terminal.tabs[0]
 if (
@@ -79,7 +83,9 @@ if (
     $terminalTab.panes[1].session_type -ne 'shell' -or
     $terminalTab.panes[2].session_type -ne 'shell' -or
     [math]::Abs([double]$terminalTab.layout.splits[0].size - (2.0 / 3.0)) -gt 0.000001 -or
-    [double]$terminalTab.layout.splits[1].size -ne 0.5
+    [double]$terminalTab.layout.splits[1].size -ne 0.5 -or
+    $terminalOutput -notmatch '保存目标：写入 workspace \[terminal-test\]' -or
+    $terminalOutput -notmatch '已选择 1 个分组，保存顺序遵循输入顺序'
 ) {
     throw 'Expected a v2 terminal workspace with one evenly split three-pane tab.'
 }
@@ -178,7 +184,8 @@ try {
     & $save -Name merged -All -Tmux 6>&1 | Out-Null
     if (
         @($global:capturedPrompts | Where-Object { $_ -match '当前有多个 tmux sessions' }).Count -ne 2 -or
-        @($global:capturedPrompts | Where-Object { $_ -match '已有 workspace name merged' }).Count -ne 1
+        @($global:capturedPrompts | Where-Object { $_ -match '已有 workspace name \[merged\]' }).Count -ne 1 -or
+        @($global:capturedPrompts | Where-Object { $_ -match '直接回车=取消' }).Count -ne 3
     ) {
         throw 'Expected merge and existing-workspace confirmations.'
     }

@@ -243,14 +243,33 @@ $sessions | Format-Table Index,TmuxSession,WindowIndex,Title,Mode,Panes,SessionN
 if ($All) {
     $selectedSessions = $sessions
 } else {
-    $prompt = if ($Tmux) {
-        "选择 tmux window 编号（逗号分隔；直接回车选择全部）"
+    if ($Tmux) {
+        if ($explicitName) {
+            $targetName = ConvertTo-WorkspaceName -Value $Name -Mode 'tmux'
+            Write-Host "保存目标：全部选中 window 将写入同一个 workspace [$targetName]；跨 tmux session 时还会要求确认。"
+        } else {
+            $automaticNames = @($sessions.TmuxSession | Select-Object -Unique | ForEach-Object {
+                ConvertTo-WorkspaceName -Value $_ -Mode 'tmux'
+            })
+            Write-Host "保存目标：按 TmuxSession 分别写入 [$($automaticNames -join '], [')]；同名文件自动覆盖。"
+        }
+        $prompt = "输入 tmux window 编号（逗号分隔；直接回车保存全部）"
     } else {
-        "选择 Ubuntu Tab/Pane 编号（逗号分隔；同一原生 Tab 用 + 连接；直接回车选择全部）"
+        $targetName = if ($explicitName) { ConvertTo-WorkspaceName -Value $Name -Mode 'terminal' } else { 'TempTab' }
+        $overwriteNote = if ($explicitName) { "同名文件存在时会要求确认" } else { "同名文件自动覆盖" }
+        Write-Host "保存目标：写入 workspace [$targetName]，$overwriteNote；每个选中分组恢复为一个新 Tab。"
+        $prompt = "输入 Ubuntu Tab/Pane 编号（逗号分隔；同一 Tab 用 + 连接；直接回车保存全部）"
     }
     $selection = Read-Host $prompt
     if ([string]::IsNullOrWhiteSpace($selection)) {
         $selectedSessions = $sessions
+        if ($Tmux -and -not $explicitName) {
+            Write-Host "未输入编号：将保存全部 window，并按 TmuxSession 聚类为独立 workspace。"
+        } elseif ($Tmux) {
+            Write-Host "未输入编号：将保存全部 window 到 workspace [$targetName]。"
+        } else {
+            Write-Host "未输入编号：将保存全部 Tab/Pane 到 workspace [$targetName]。"
+        }
     } else {
         $selectedSessions = @(
             foreach ($selectionGroup in ($selection -split ',')) {
@@ -301,6 +320,7 @@ if ($All) {
                 }
             }
         )
+        Write-Host "已选择 $($selectedSessions.Count) 个分组，保存顺序遵循输入顺序。"
     }
 }
 
@@ -318,9 +338,10 @@ if ($unresolved.Count -gt 0) {
 if ($Tmux -and $explicitName -and -not $DryRun) {
     $sourceTmuxSessions = @($selectedSessions.TmuxSession | Select-Object -Unique)
     if ($sourceTmuxSessions.Count -gt 1) {
-        $confirmation = Read-Host "当前有多个 tmux sessions：[$($sourceTmuxSessions -join ', ')]，将保存为 [$Name]，是否确认？(y/N)"
+        $mergeTargetName = ConvertTo-WorkspaceName -Value $Name -Mode 'tmux'
+        $confirmation = Read-Host "当前有多个 tmux sessions：[$($sourceTmuxSessions -join ', ')]，将合并保存为 [$mergeTargetName]。是否确认？(y/N，直接回车=取消)"
         if ($confirmation -notin @('y', 'Y', 'yes', 'YES')) {
-            throw "Save cancelled."
+            throw "已取消保存；没有写入或覆盖 workspace。"
         }
     }
 }
@@ -444,9 +465,9 @@ New-Item -ItemType Directory -Path $workspacesDirectory -Force | Out-Null
 foreach ($workspace in $workspaces) {
     $workspacePath = Join-Path $workspacesDirectory "$($workspace.name).json"
     if ((Test-Path -LiteralPath $workspacePath) -and -not $Force -and $explicitName) {
-        $confirmation = Read-Host "已有 workspace name $($workspace.name)，是否覆盖？(y/N)"
+        $confirmation = Read-Host "已有 workspace name [$($workspace.name)]。是否覆盖？(y/N，直接回车=取消)"
         if ($confirmation -notin @('y', 'Y', 'yes', 'YES')) {
-            throw "Save cancelled."
+            throw "已取消保存；现有 workspace [$($workspace.name)] 未修改。"
         }
     }
     $workspaceJson = $workspace | ConvertTo-Json -Depth 10

@@ -40,6 +40,15 @@ try {
         throw 'Tmux workspace selection must follow input order in one Windows Terminal window.'
     }
 
+    function Read-Host { '' }
+    $cancelOutput = (& $entry open -Tmux 6>&1 | Out-String)
+    if (
+        $cancelOutput -notmatch '同一个新 Windows Terminal window' -or
+        $cancelOutput -notmatch '未输入编号：已取消打开，没有启动任何 workspace'
+    ) {
+        throw 'Tmux workspace browsing must explain and confirm the direct-Enter cancellation result.'
+    }
+
     $missingMessage = try {
         & $entry open -n tmux-v2-tes -DryRun
         ''
